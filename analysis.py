@@ -1,5 +1,10 @@
 import argparse
 import functools
+import logging
+
+logger = logging.getLogger(__file__)
+if __name__ != '__main__':
+    logging.basicConfig(level=logging.WARN)
 
 
 def output_formatted_data(output,
@@ -24,7 +29,6 @@ def output_formatted_data(output,
 
 
 def main():
-
     global output_formatted_data
 
     parser = argparse.ArgumentParser(description='Analyze exported data')
