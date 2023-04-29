@@ -44,6 +44,17 @@ def fetch_status_categories_all(client):
     return json.loads(response.text)
 
 
+def fetch_statuses_all(client):
+    response = requests.get(
+        client.url('/rest/api/3/status'),
+        auth=client.auth(),
+        headers=headers())
+    if response.status_code != 200:
+        logging.warning('Could not fetch statuses')
+        return {}
+    return json.loads(response.text)
+
+
 def fetch(client,
           project_key,
           since,
@@ -54,7 +65,7 @@ def fetch(client,
     # get high level information fresh every time
     with requests_cache.disabled():
         categories = fetch_status_categories_all(client)
-        statuses = {}  # TBD
+        statuses = fetch_statuses_all(client)
         project = {}  # TBD
         project_statuses = {}  # TBD
 
