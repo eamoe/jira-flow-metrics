@@ -45,6 +45,11 @@ def main():
 
     args = parser.parse_args()
 
+    if not all((args.domain, args.email, args.apikey)):
+        parser.error("The JIRA_DOMAIN, JIRA_EMAIL, and JIRA_APIKEY environment variables "
+                     "must be set or provided via the -d -e -k command line flags.")
+        return
+
 
 if __name__ == '__main__':
     main()
