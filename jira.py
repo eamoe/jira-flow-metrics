@@ -2,6 +2,7 @@ from decouple import config
 import argparse
 from requests.auth import HTTPBasicAuth
 import logging
+import csv
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,79 @@ class Client:
         return HTTPBasicAuth(self.email, self.apikey)
 
 
-def main():
+def generate_output_csv(client,
+                        csv_file,
+                        project_key,
+                        since,
+                        custom_fields=None,
+                        custom_field_names=None,
+                        updates_only=False,
+                        write_header=False,
+                        anonymize=False):
 
+    import datetime
+    import dateutil.parser
+    import pytz
+
+    field_names = [
+        'project_id',
+        'project_key',
+        'issue_id',
+        'issue_key',
+        'issue_type_id',
+        'issue_type_name',
+        'issue_title',
+        'issue_created_date',
+        'changelog_id',
+        'status_from_id',
+        'status_from_name',
+        'status_to_id',
+        'status_to_name',
+        'status_from_category_name',
+        'status_to_category_name',
+        'status_change_date',
+    ]
+
+    custom_field_map = {}
+    if custom_fields:
+        if custom_field_names:
+            custom_field_map = dict(zip(custom_fields, custom_field_names))
+            field_names.extend(custom_field_names)
+        else:
+            field_names.extend(custom_fields)
+
+    writer = csv.DictWriter(csv_file, fieldnames=field_names)
+
+    if write_header:
+        writer.writeheader()
+
+    count = 0
+    records = {}
+    for record in records:
+        for key, value in record.items():
+            # ensure ISO datetime strings with TZ offsets to ISO datetime strings in UTC
+            if 'date' in key and value and not isinstance(value, datetime.datetime):
+                value = dateutil.parser.parse(value)
+                value = value.astimezone(pytz.UTC)
+                record[key] = value.isoformat()
+
+        if anonymize:
+            record['issue_key'] = record['issue_key'].replace(record['project_key'], 'MSD')
+            record['project_key'] = 'MSD'
+            record['issue_title'] = 'Masked title'
+
+        if custom_field_map:
+            for key, value in custom_field_map.items():
+                if key not in record:
+                    continue
+                record[value] = record[key]
+                del record[key]
+
+        writer.writerow(record)
+        count += 1
+
+
+def main():
     domain = config('JIRA_DOMAIN')
     email = config('JIRA_EMAIL')
     apikey = config('JIRA_APIKEY')
