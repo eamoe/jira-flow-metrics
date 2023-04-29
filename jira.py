@@ -118,7 +118,7 @@ def fetch_issues(
            'GET',
            client.url('/rest/api/3/search'),
            params=payload,
-           headers=client.headers(),
+           headers=headers(),
            auth=client.auth()
         )
     else:
@@ -126,7 +126,7 @@ def fetch_issues(
            'POST',
            client.url('/rest/api/3/search'),
            data=json.dumps(payload),
-           headers=client.headers(),
+           headers=headers(),
            auth=client.auth()
         )
 
