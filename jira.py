@@ -4,6 +4,8 @@ from requests.auth import HTTPBasicAuth
 import logging
 import csv
 import requests_cache
+import requests
+import json
 
 requests_cache.install_cache('jira_cache', backend='sqlite', expire_after=24 * 60 * 60)
 
@@ -31,6 +33,17 @@ class Client:
         return HTTPBasicAuth(self.email, self.apikey)
 
 
+def fetch_status_categories_all(client):
+    response = requests.get(
+        client.url('/rest/api/3/statuscategory'),
+        auth=client.auth(),
+        headers=headers())
+    if response.status_code != 200:
+        logging.warning('Could not fetch status categories')
+        return {}
+    return json.loads(response.text)
+
+
 def fetch(client,
           project_key,
           since,
@@ -40,7 +53,7 @@ def fetch(client,
 
     # get high level information fresh every time
     with requests_cache.disabled():
-        categories = {}  # TBD
+        categories = fetch_status_categories_all(client)
         statuses = {}  # TBD
         project = {}  # TBD
         project_statuses = {}  # TBD
