@@ -179,6 +179,31 @@ def yield_issues_all(
             fetched += 1
 
 
+def yield_changelog_all(
+        client,
+        issue_id,
+        batch=1000):
+
+    starting_limit = 10
+    changelog_count = {}  # TBD
+    total = changelog_count.get('total', 0)
+    if total <= starting_limit:
+        for result in changelog_count.get('values', []):
+            yield result
+    else:
+        fetched = 0
+        while fetched < total:
+            j = {}  # TBD
+            if not j:
+                break
+            k = j.get('values', [])
+            if not k:
+                break
+            for result in k:
+                yield result
+                fetched += 1
+
+
 def fetch(client,
           project_key,
           since,
@@ -231,7 +256,7 @@ def fetch(client,
         if custom_fields:
             suffix = {k: issue.get('fields', {}).get(k) for k in custom_fields}
 
-        changelog = {}  # TBD
+        changelog = yield_changelog_all(client, issue_id)
         has_status = False
         for change_set in changelog:
             logging.info(f"Fetching changelog for issue {issue.get('key')}...")
