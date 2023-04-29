@@ -179,13 +179,41 @@ def yield_issues_all(
             fetched += 1
 
 
+def fetch_changelog(
+        client,
+        issue_id,
+        start,
+        limit):
+
+    params = {
+        'startAt':      start,
+        'maxResults':   limit
+    }
+
+    response = requests.request(
+        'GET',
+        client.url(f'/rest/api/3/issue/{issue_id}/changelog'),
+        params=params,
+        auth=client.auth(),
+        headers=headers())
+
+    if response.status_code != 200:
+        logging.warning(f'Could not fetch changelog for issue {issue_id}')
+        return {}
+    return json.loads(response.text)
+
+
 def yield_changelog_all(
         client,
         issue_id,
         batch=1000):
 
     starting_limit = 10
-    changelog_count = {}  # TBD
+    changelog_count = fetch_changelog(
+        client,
+        issue_id,
+        start=0,
+        limit=starting_limit)
     total = changelog_count.get('total', 0)
     if total <= starting_limit:
         for result in changelog_count.get('values', []):
@@ -193,7 +221,11 @@ def yield_changelog_all(
     else:
         fetched = 0
         while fetched < total:
-            j = {}  # TBD
+            j = fetch_changelog(
+                client,
+                issue_id,
+                start=fetched,
+                limit=batch)
             if not j:
                 break
             k = j.get('values', [])
