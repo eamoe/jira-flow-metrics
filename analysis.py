@@ -7,6 +7,10 @@ if __name__ != '__main__':
     logging.basicConfig(level=logging.WARN)
 
 
+class AnalysisException(Exception):
+    pass
+
+
 def output_formatted_data(output,
                           title,
                           data,
