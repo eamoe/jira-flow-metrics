@@ -1,7 +1,31 @@
 import argparse
+import functools
+
+
+def output_formatted_data(output,
+                          title,
+                          data,
+                          output_exclude_title=False,
+                          output_header='',
+                          output_footer='',
+                          output_columns=None,
+                          output_format=None):
+    if output_format is None:
+        output_format = 'string'
+
+    output.writelines(
+        f'{line}\n' for line in [output_header if output_header else '',
+                                 f'# {title}' if title and not output_exclude_title else '',
+                                 data.to_string(columns=output_columns) if output_format == 'string' else
+                                 data.to_csv(columns=output_columns) if output_format == 'csv' else
+                                 data.to_html(columns=output_columns) if output_format == 'html' else '',
+                                 output_footer if output_footer else '',
+                                 ] if line)
 
 
 def main():
+
+    global output_formatted_data
 
     parser = argparse.ArgumentParser(description='Analyze exported data')
 
@@ -230,7 +254,10 @@ def main():
     if args.output:
         args.output.reconfigure(line_buffering=True)
 
-    print(5)
+    format_args = ['output_exclude_title', 'output_header', 'output_footer', 'output_format', 'output_columns']
+    if any(hasattr(args, arg) for arg in format_args):
+        kw = {key: getattr(args, key) for key in format_args if hasattr(args, key)}
+        output_formatted_data = functools.partial(output_formatted_data, **kw)
 
 
 if __name__ == '__main__':
