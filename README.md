@@ -1,1 +1,1 @@
-# jira-flow-metrics
+# Jira Flow Metrics
