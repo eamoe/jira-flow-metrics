@@ -209,6 +209,29 @@ def main():
     subparser_shell = subparsers.add_parser('shell',
                                             help='Load the data into an interactive Python shell')
 
+    args = parser.parse_args()
+
+    if args.command is None:
+        parser.print_help()
+        return
+
+    if args.command == 'detail' and args.detail_type is None:
+        subparser_detail.print_help()
+        return
+
+    if args.command == 'survival' and args.survival_type is None:
+        subparser_survival.print_help()
+        return
+
+    if args.command == 'forecast' and args.forecast_type is None:
+        subparser_forecast.print_help()
+        return
+
+    if args.output:
+        args.output.reconfigure(line_buffering=True)
+
+    print(5)
+
 
 if __name__ == '__main__':
     main()
