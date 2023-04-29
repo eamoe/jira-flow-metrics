@@ -1,8 +1,9 @@
-import argparse
-
 from decouple import config
-
+import argparse
 from requests.auth import HTTPBasicAuth
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def headers():
@@ -69,10 +70,15 @@ def main():
 
     args = parser.parse_args()
 
+    if not args.quiet:
+        logging.basicConfig(level=logging.INFO)
+
     if not all((args.domain, args.email, args.apikey)):
         parser.error("The JIRA_DOMAIN, JIRA_EMAIL, and JIRA_APIKEY environment variables "
                      "must be set or provided via the -d -e -k command line flags.")
         return
+
+    logging.info(f'Connecting to {args.domain} with {args.email} email...')
 
     client = Client(domain=args.domain, email=args.email, apikey=args.apikey)
 
