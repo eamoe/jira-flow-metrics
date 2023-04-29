@@ -463,6 +463,25 @@ def main():
 
     client = Client(domain=args.domain, email=args.email, apikey=args.apikey)
 
+    mode = 'a' if args.append else 'w'
+
+    custom_fields = [k if k.startswith('customfield') else 'customfield_{}'.format(k) for k in
+                     args.field] if args.field else []
+    custom_field_names = list(args.name or []) + custom_fields[len(args.name or []):]
+
+    with open(args.output, mode, newline='') as csv_file:
+        logging.info(f'{args.output} Opened for writing (mode: {mode})...')
+        generate_output_csv(
+            client,
+            csv_file,
+            args.project,
+            since=args.since,
+            custom_fields=custom_fields,
+            custom_field_names=custom_field_names,
+            updates_only=args.updates_only,
+            write_header=not args.append,
+            anonymize=args.anonymize)
+
 
 if __name__ == '__main__':
     main()
