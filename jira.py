@@ -55,6 +55,17 @@ def fetch_statuses_all(client):
     return json.loads(response.text)
 
 
+def fetch_project(client, project_key):
+    response = requests.get(
+        client.url(f'/rest/api/3/project/{project_key}'),
+        auth=client.auth(),
+        headers=headers())
+    if response.status_code != 200:
+        logging.warning(f'Could not fetch project {project_key}')
+        return {}
+    return json.loads(response.text)
+
+
 def fetch(client,
           project_key,
           since,
@@ -66,7 +77,7 @@ def fetch(client,
     with requests_cache.disabled():
         categories = fetch_status_categories_all(client)
         statuses = fetch_statuses_all(client)
-        project = {}  # TBD
+        project = fetch_project(client, project_key)
         project_statuses = {}  # TBD
 
     # compute lookup tables
