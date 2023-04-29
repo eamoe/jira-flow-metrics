@@ -99,6 +99,8 @@ def generate_output_csv(client,
         writer.writerow(record)
         count += 1
 
+    logging.info(f'{count} records written')
+
 
 def main():
     domain = config('JIRA_DOMAIN')
