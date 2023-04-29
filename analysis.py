@@ -42,6 +42,96 @@ def output_formatted_data(output,
                                  ] if line)
 
 
+def run(args):
+
+    data, dupes, filtered = read_data(args.file,
+                                      exclude_types=args.exclude_type,
+                                      since=args.since,
+                                      until=args.until)
+
+    if data.empty:
+        logger.warning('Data for analysis is empty')
+        return
+
+    exclude_weekends = args.exclude_weekends
+
+    # if no since/until is provided, compute the range from the data
+    since = args.since
+    if not since:
+        since = min(data['issue_created_date'].min(), data['status_change_date'].min())
+    if hasattr(since, 'date'):
+        since = since.date()
+    until = args.until
+    if not until:
+        until = max(data['issue_created_date'].max(), data['status_change_date'].max()) + pandas.Timedelta(1, 'D')
+    if hasattr(until, 'date'):
+        until = until.date()
+
+    output = args.output
+
+    # preprocess issue data
+    i, _ = process_issue_data(data, since=since, until=until, exclude_weekends=exclude_weekends)
+
+    # Calc summary data
+    if args.command == 'summary':
+        cmd_summary(output, i, since=since, until=until)
+
+    # Calc detail data
+    if args.command == 'detail' and args.detail_type == 'flow':
+        cmd_detail_flow(output,
+                        data,
+                        since=since,
+                        until=until,
+                        categorical=args.categorical,
+                        plot=args.output_plot,
+                        plot_trendline=args.output_plot_trendline,
+                        columns=args.output_columns)
+
+    if args.command == 'detail' and args.detail_type == 'wip':
+        cmd_detail_wip(output, i, since=since, until=until, wip_type=args.type)
+
+    if args.command == 'detail' and args.detail_type == 'throughput':
+        cmd_detail_throughput(output, i, since=since, until=until, throughput_type=args.type)
+
+    if args.command == 'detail' and args.detail_type == 'cycletime':
+        cmd_detail_cycletime(output, i, since=since, until=until)
+
+    if args.command == 'detail' and args.detail_type == 'leadtime':
+        cmd_detail_leadtime(output, i, since=since, until=until)
+
+    # Calc correlation data
+    if args.command == 'correlation':
+        cmd_correlation(output, i, since=since, until=until, plot=args.output_plot)
+
+    # Calc survival data
+    if args.command == 'survival' and args.survival_type == 'km':
+        cmd_survival_km(output, i, since=since, until=until)
+
+    if args.command == 'survival' and args.survival_type == 'wb':
+        cmd_survival_wb(output, i, since=since, until=until)
+
+    # Calc forecast data
+    if args.command == 'forecast' and args.forecast_type == 'items' and args.n:
+        cmd_forecast_items_n(output, i, since=since, until=until, n=args.n, simulations=args.simulations,
+                             window=args.window)
+
+    if args.command == 'forecast' and args.forecast_type == 'items' and args.days:
+        cmd_forecast_items_days(output, i, since=since, until=until, days=args.days, simulations=args.simulations,
+                                window=args.window)
+
+    if args.command == 'forecast' and args.forecast_type == 'points' and args.n:
+        cmd_forecast_points_n(output, i, since=since, until=until, n=args.n, simulations=args.simulations,
+                              window=args.window)
+
+    if args.command == 'forecast' and args.forecast_type == 'points' and args.days:
+        cmd_forecast_points_days(output, i, since=since, until=until, days=args.days, simulations=args.simulations,
+                                 window=args.window)
+
+    # Calc shell data
+    if args.command == 'shell':
+        cmd_shell(output, data, i, since=since, until=until, args=args)
+
+
 def main():
     global output_formatted_data
 
@@ -279,7 +369,7 @@ def main():
 
     try:
         init()
-        # run(args)
+        run(args)
     except AnalysisException as e:
         logger.error('Error: %s', e)
 
