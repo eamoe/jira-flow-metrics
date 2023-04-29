@@ -2,8 +2,32 @@ import argparse
 
 from decouple import config
 
+from requests.auth import HTTPBasicAuth
+
+
+def headers():
+    return {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+    }
+
+
+class Client:
+
+    def __init__(self, domain='', email='', apikey=''):
+        self.domain = domain
+        self.email = email
+        self.apikey = apikey
+
+    def url(self, path):
+        return self.domain + path
+
+    def auth(self):
+        return HTTPBasicAuth(self.email, self.apikey)
+
 
 def main():
+
     domain = config('JIRA_DOMAIN')
     email = config('JIRA_EMAIL')
     apikey = config('JIRA_APIKEY')
@@ -49,6 +73,8 @@ def main():
         parser.error("The JIRA_DOMAIN, JIRA_EMAIL, and JIRA_APIKEY environment variables "
                      "must be set or provided via the -d -e -k command line flags.")
         return
+
+    client = Client(domain=args.domain, email=args.email, apikey=args.apikey)
 
 
 if __name__ == '__main__':
