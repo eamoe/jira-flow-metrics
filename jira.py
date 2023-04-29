@@ -66,6 +66,41 @@ def fetch_project(client, project_key):
     return json.loads(response.text)
 
 
+def fetch_statuses_by_project(client, project_key):
+    response = requests.get(
+        client.url(f'/rest/api/3/project/{project_key}/statuses'),
+        auth=client.auth(),
+        headers=headers())
+    if response.status_code != 200:
+        logging.warning(f'Could not fetch project {project_key} statuses')
+        return {}
+    return json.loads(response.text)
+
+
+def yield_issues_all(
+        client,
+        project_key,
+        since,
+        batch=100,
+        custom_fields=None,
+        updates_only=False,
+        use_get=False):
+
+    issues_count = {}  # TBD
+    total = issues_count.get('total', 0)
+    fetched = 0
+    while fetched < total:
+        j = {}  # TBD
+        if not j:
+            break
+        k = j.get('issues', [])
+        if not k:
+            break
+        for result in k:
+            yield result
+            fetched += 1
+
+
 def fetch(client,
           project_key,
           since,
@@ -73,14 +108,14 @@ def fetch(client,
           updates_only=False):
     logging.info(f'Fetching project {project_key} since {since}...')
 
-    # get high level information fresh every time
+    # Get high level information fresh every time
     with requests_cache.disabled():
         categories = fetch_status_categories_all(client)
         statuses = fetch_statuses_all(client)
         project = fetch_project(client, project_key)
-        project_statuses = {}  # TBD
+        project_statuses = fetch_statuses_by_project(client, project_key)
 
-    # compute lookup tables
+    # Compute lookup tables
     categories_by_category_id = {}
     for category in categories:
         categories_by_category_id[category.get('id')] = category
@@ -90,7 +125,13 @@ def fetch(client,
         status_categories_by_status_id[int(status.get('id'))] = \
             categories_by_category_id[status.get('statusCategory', {}).get('id')]
 
-    issues = {}  # TBD
+    issues = yield_issues_all(
+        client,
+        project_key,
+        since=since,
+        custom_fields=custom_fields,
+        updates_only=updates_only,
+        use_get=True)
 
     for issue in issues:
         logging.info(f"Fetching issue {issue.get('key')}...")
