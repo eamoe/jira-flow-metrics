@@ -1,6 +1,9 @@
 import argparse
 import functools
 import logging
+import matplotlib
+import pandas
+from pandas.plotting import register_matplotlib_converters
 
 logger = logging.getLogger(__file__)
 if __name__ != '__main__':
@@ -9,6 +12,13 @@ if __name__ != '__main__':
 
 class AnalysisException(Exception):
     pass
+
+
+def init():
+    register_matplotlib_converters()
+    matplotlib.pyplot.style.use('fivethirtyeight')
+    matplotlib.pyplot.rcParams['axes.labelsize'] = 14
+    matplotlib.pyplot.rcParams['lines.linewidth'] = 1.5
 
 
 def output_formatted_data(output,
@@ -266,6 +276,12 @@ def main():
     if any(hasattr(args, arg) for arg in format_args):
         kw = {key: getattr(args, key) for key in format_args if hasattr(args, key)}
         output_formatted_data = functools.partial(output_formatted_data, **kw)
+
+    try:
+        init()
+        # run(args)
+    except AnalysisException as e:
+        logger.error('Error: %s', e)
 
 
 if __name__ == '__main__':
