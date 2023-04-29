@@ -21,6 +21,106 @@ def init():
     matplotlib.pyplot.rcParams['lines.linewidth'] = 1.5
 
 
+def read_data(path, exclude_types=None, since='', until=''):
+
+    # read csv changelog data with necessary fields:
+    # issue_id - unique numeric id for this issue
+    # issue_key - unique textual key for this issue
+    # issue_type_name - category of issue type
+    # issue_created_date - when the issue was created
+    # issue_points - how many points were assigned to this issue (optional)
+    # changelog_id - unique id for this particular change for this issue
+    # status_change_date - when the change was made
+    # status_from_name - from which status (optional)
+    # status_to_name - to which status
+    # status_from_category_name - from which status category (optional)
+    # status_to_category_name - to which status category
+
+    omit_issue_types = set(exclude_types) if exclude_types else None
+
+    logger.info('Opening input file for reading...')
+
+    data = pandas.read_csv(path)
+
+    required_fields = ['issue_id',
+                       'issue_key',
+                       'issue_type_name',
+                       'issue_created_date',
+                       'changelog_id',
+                       'status_change_date',
+                       'status_from_name',
+                       'status_to_name',
+                       'status_from_category_name',
+                       'status_to_category_name',
+                       ]
+
+    # Check for missing fields
+    missing_fields = []
+    for field in required_fields:
+        if field not in data:
+            missing_fields.append(field)
+    if missing_fields:
+        raise AnalysisException(f'Required fields `{", ".join(missing_fields)}` missing from the dataset')
+
+    # parse the datetimes to utc and then localize them to naive datetimes
+    # so _all_ date processing in pandas is naive in UTC
+    data['issue_created_date'] = data['issue_created_date'].apply(pandas.to_datetime, utc=True).dt.tz_localize(None)
+    data['status_change_date'] = data['status_change_date'].apply(pandas.to_datetime, utc=True).dt.tz_localize(None)
+
+    # Check to make sure the data is sorted correctly by issue_id and status_change_date
+    data = data.sort_values(['issue_id', 'status_change_date'])
+
+    # Drop duplicates based on issue_id and changelog_id
+    n1 = len(data)
+    logger.info(f'-> {n1} changelog items read')
+    data = data.drop_duplicates(subset=['issue_id', 'changelog_id'], keep='first')
+
+    # Count how many changelog items were duplicates
+    n2 = len(data)
+    dupes = n1 - n2
+    logger.info(f'-> {dupes} changelog items removed as duplicate')
+
+    # Filter out specific issue types
+    if omit_issue_types:
+        data = data[~data['issue_type_name'].isin(omit_issue_types)]
+        n3 = len(data)
+        omitted = n2 - n3
+        logger.info(f'-> {omitted} changelog items excluded by type')
+
+    # Filter out issues before since date and after until
+    if since:
+        data = data[data['issue_created_date'] >= pandas.to_datetime(since)]
+    if until:
+        data = data[data['issue_created_date'] < pandas.to_datetime(until)]
+
+    # Count how many changelog items were filtered
+    n3 = len(data)
+    filtered = n2 - n3
+    logger.info(f'-> {filtered} changelog items filtered')
+
+    # If issue_points does not exist, set them all to 1
+    if 'issue_points' not in data:
+        data['issue_points'] = 1
+
+    if not data.empty:
+        min_date = data['issue_created_date'].min().strftime('%Y-%m-%d')
+        if not since:
+            since = min_date
+        max_date = data['issue_created_date'].max().strftime('%Y-%m-%d')
+        if not until:
+            until = max_date
+        status_min_date = data['status_change_date'].min().strftime('%Y-%m-%d')
+        status_max_date = data['status_change_date'].max().strftime('%Y-%m-%d')
+        num_issues = data['issue_key'].nunique()
+        logger.info(f'-> {n3} changelog items remain created from {min_date} to {max_date} '
+                    f'with status changes from {status_min_date} to {status_max_date}')
+        logger.info(f'-> {num_issues} unique work items loaded since {since} & until {until}, ready for analysis')
+
+    logger.info('---')
+
+    return data, dupes, filtered
+
+
 def output_formatted_data(output,
                           title,
                           data,
@@ -43,7 +143,6 @@ def output_formatted_data(output,
 
 
 def run(args):
-
     data, dupes, filtered = read_data(args.file,
                                       exclude_types=args.exclude_type,
                                       since=args.since,
@@ -55,7 +154,7 @@ def run(args):
 
     exclude_weekends = args.exclude_weekends
 
-    # if no since/until is provided, compute the range from the data
+    # If no since/until is provided, compute the range from the data
     since = args.since
     if not since:
         since = min(data['issue_created_date'].min(), data['status_change_date'].min())
