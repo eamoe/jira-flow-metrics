@@ -3,6 +3,9 @@ import argparse
 from requests.auth import HTTPBasicAuth
 import logging
 import csv
+import requests_cache
+
+requests_cache.install_cache('jira_cache', backend='sqlite', expire_after=24 * 60 * 60)
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +31,96 @@ class Client:
         return HTTPBasicAuth(self.email, self.apikey)
 
 
+def fetch(client,
+          project_key,
+          since,
+          custom_fields=None,
+          updates_only=False):
+    logging.info(f'Fetching project {project_key} since {since}...')
+
+    # get high level information fresh every time
+    with requests_cache.disabled():
+        categories = {}  # TBD
+        statuses = {}  # TBD
+        project = {}  # TBD
+        project_statuses = {}  # TBD
+
+    # compute lookup tables
+    categories_by_category_id = {}
+    for category in categories:
+        categories_by_category_id[category.get('id')] = category
+
+    status_categories_by_status_id = {}
+    for status in statuses:
+        status_categories_by_status_id[int(status.get('id'))] = \
+            categories_by_category_id[status.get('statusCategory', {}).get('id')]
+
+    issues = {}  # TBD
+
+    for issue in issues:
+        logging.info(f"Fetching issue {issue.get('key')}...")
+
+        issue_id = issue.get('id')
+
+        prefix = {
+            'project_id':           project.get('id'),
+            'project_key':          project.get('key'),
+            'issue_id':             issue.get('id'),
+            'issue_key':            issue.get('key'),
+            'issue_type_id':        issue.get('fields', {}).get('issuetype', {}).get('id'),
+            'issue_type_name':      issue.get('fields', {}).get('issuetype', {}).get('name'),
+            'issue_title':          issue.get('fields', {}).get('summary'),
+            'issue_created_date':   issue.get('fields', {}).get('created'),
+        }
+
+        suffix = {}
+        if custom_fields:
+            suffix = {k: issue.get('fields', {}).get(k) for k in custom_fields}
+
+        changelog = {}  # TBD
+        has_status = False
+        for change_set in changelog:
+            logging.info(f"Fetching changelog for issue {issue.get('key')}...")
+
+            for record in change_set.get('items', []):
+                if record.get('field') == 'status':
+                    from_category = status_categories_by_status_id.get(int(record.get('from')), {})
+                    to_category = status_categories_by_status_id.get(int(record.get('to')), {})
+
+                    row = dict(prefix)
+                    row.update({
+                        'changelog_id':                 change_set.get('id'),
+                        'status_from_id':               record.get('from'),
+                        'status_from_name':             record.get('fromString'),
+                        'status_to_id':                 record.get('to'),
+                        'status_to_name':               record.get('toString'),
+                        'status_from_category_name':    from_category.get('name'),
+                        'status_to_category_name':      to_category.get('name'),
+                        'status_change_date':           change_set.get('created'),
+                    })
+                    row.update(suffix)
+
+                    yield row
+
+                    has_status = True
+
+        # if we do not have a changelog status for this issue, we should emit a "new" status
+        if not has_status:
+            row = dict(prefix)
+            row.update({
+                'changelog_id':                 None,
+                'status_from_id':               None,
+                'status_from_name':             None,
+                'status_to_id':                 None,
+                'status_to_name':               None,
+                'status_from_category_name':    None,
+                'status_to_category_name':      None,
+                'status_change_date':           None
+            })
+            row.update(suffix)
+            yield row
+
+
 def generate_output_csv(client,
                         csv_file,
                         project_key,
@@ -37,7 +130,6 @@ def generate_output_csv(client,
                         updates_only=False,
                         write_header=False,
                         anonymize=False):
-
     import datetime
     import dateutil.parser
     import pytz
@@ -74,8 +166,12 @@ def generate_output_csv(client,
     if write_header:
         writer.writeheader()
 
+    records = fetch(client,
+                    project_key,
+                    since=since,
+                    custom_fields=custom_fields,
+                    updates_only=updates_only)
     count = 0
-    records = {}
     for record in records:
         for key, value in record.items():
             # ensure ISO datetime strings with TZ offsets to ISO datetime strings in UTC
