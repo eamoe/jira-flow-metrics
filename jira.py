@@ -77,20 +77,98 @@ def fetch_statuses_by_project(client, project_key):
     return json.loads(response.text)
 
 
-def yield_issues_all(
+def fetch_issues(
         client,
         project_key,
         since,
-        batch=100,
+        start=0,
+        limit=1000,
         custom_fields=None,
         updates_only=False,
         use_get=False):
 
-    issues_count = {}  # TBD
+    jql = f'project = {project_key} AND created >= "{since}" ORDER BY created ASC'
+
+    if updates_only:
+        jql = f'project = {project_key} AND updated >= "{since}" ORDER BY created ASC'
+
+    fields = [
+        'parent',
+        'summary',
+        'status',
+        'issuetype',
+        'created',
+        'updated'
+    ]
+
+    if custom_fields:
+        fields = fields + custom_fields
+
+    payload = {
+      'jql':            jql,
+      'fieldsByKeys':   False,
+      'fields':         fields,
+      'expand':         'names',
+      'startAt':        start,
+      'maxResults':     limit,
+    }
+
+    if use_get:
+        response = requests.request(
+           'GET',
+           client.url('/rest/api/3/search'),
+           params=payload,
+           headers=client.headers(),
+           auth=client.auth()
+        )
+    else:
+        response = requests.request(
+           'POST',
+           client.url('/rest/api/3/search'),
+           data=json.dumps(payload),
+           headers=client.headers(),
+           auth=client.auth()
+        )
+
+    if response.status_code != 200:
+        logging.warning(f'Could not fetch issues since {since}')
+        return {}
+
+    return json.loads(response.text)
+
+
+def yield_issues_all(
+        client,
+        project_key,
+        since,
+        batch=1000,
+        custom_fields=None,
+        updates_only=False,
+        use_get=False):
+
+    issues_count = fetch_issues(
+        client,
+        project_key,
+        since=since,
+        start=0,
+        limit=0,
+        custom_fields=custom_fields,
+        updates_only=updates_only,
+        use_get=use_get)
+
     total = issues_count.get('total', 0)
     fetched = 0
     while fetched < total:
-        j = {}  # TBD
+        j = fetch_issues(
+            client,
+            project_key,
+            since=since,
+            start=fetched,
+            limit=batch,
+            custom_fields=custom_fields,
+            updates_only=updates_only,
+            use_get=use_get)
+
         if not j:
             break
         k = j.get('issues', [])
