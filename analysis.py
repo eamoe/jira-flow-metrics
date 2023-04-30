@@ -908,8 +908,8 @@ def cmd_correlation(output, issue_data, since='', until='', plot=None):
     points = issue_data['issue_points'].values.astype(float)
     lead_time = issue_data['lead_time_days'].values.astype(float)
     cycle_time = issue_data['cycle_time_days'].values.astype(float)
-    cycle_result = process_correlation(points, cycle_time)  # TBD
-    lead_result = process_correlation(points, lead_time)  # TBD
+    cycle_result = process_correlation(points, cycle_time)
+    lead_result = process_correlation(points, lead_time)
 
     point_summary = pandas.DataFrame.from_records([
         ('Observations', issue_data['issue_points'].count()),
@@ -917,7 +917,7 @@ def cmd_correlation(output, issue_data, since='', until='', plot=None):
         ('Max', issue_data['issue_points'].max()),
         ('Average', issue_data['issue_points'].mean()),
         ('Standard Deviation', issue_data['issue_points'].std()),
-    ],
+        ],
         columns=('Metric', 'Value'),
         index='Metric')
 
@@ -928,7 +928,7 @@ def cmd_correlation(output, issue_data, since='', until='', plot=None):
         ('P-Value (p)', cycle_result['p-val'].iat[0]),
         ('Likelihood of detecting effect (power)', cycle_result['power'].iat[0]),
         ('Significance (p <= 0.05)', 'significant' if cycle_result['p-val'].iat[0] <= 0.05 else 'not significant'),
-    ],
+        ],
         columns=('Metric', 'Value'),
         index='Metric')
 
@@ -939,7 +939,7 @@ def cmd_correlation(output, issue_data, since='', until='', plot=None):
         ('P-Value (p)', lead_result['p-val'].iat[0]),
         ('Likelihood of detecting effect (power)', lead_result['power'].iat[0]),
         ('Significance (p <= 0.05)', 'significant' if lead_result['p-val'].iat[0] <= 0.05 else 'not significant'),
-    ],
+        ],
         columns=('Metric', 'Value'),
         index='Metric')
 
@@ -968,7 +968,7 @@ def cmd_correlation(output, issue_data, since='', until='', plot=None):
         ax.set_xlabel('Issue Points')
         ax.set_xlim((1, issue_data['issue_points'].max() + 0.1))
 
-        # lead time
+        # Lead time
         ax = plot_correlation(points, lead_time, ax=ax2)
         ax.set_title('Point Correlation to Lead Time', y=1.02, loc='left',
                      fontdict={'size': 18, 'weight': 'normal'})
