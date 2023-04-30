@@ -367,7 +367,6 @@ def process_lead_data(issue_data, since='', until=''):
 
 
 def process_cycle_data(issue_data, since='', until=''):
-
     if issue_data.empty:
         logger.warning('Data for cycle analysis is empty')
         return
@@ -381,7 +380,7 @@ def process_cycle_data(issue_data, since='', until=''):
         cycle_data = cycle_data[cycle_data['complete_day'] < pandas.to_datetime(until)]
 
     # Drop issues with a cycle time less than 1 hour
-    cycle_data = cycle_data[cycle_data['cycle_time_days'] > (1/24.0)]
+    cycle_data = cycle_data[cycle_data['cycle_time_days'] > (1 / 24.0)]
 
     data = pandas.DataFrame()
     data['In Progress Date'] = cycle_data['in_progress_day']
@@ -397,7 +396,6 @@ def process_cycle_data(issue_data, since='', until=''):
 
 
 def process_throughput_data(issue_data, since='', until=''):
-
     if issue_data.empty:
         logger.warning('Data for throughput analysis is empty')
         return
@@ -447,6 +445,49 @@ def process_throughput_data(issue_data, since='', until=''):
     return throughput, throughput_per_week
 
 
+def process_wip_data(issue_data, since='', until=''):
+    if issue_data.empty:
+        logger.warning('Data for wip analysis is empty')
+        return
+
+    wip_data = issue_data[issue_data['in_progress_day'].notnull()]
+    wip_data = wip_data[wip_data['last_issue_status_category'] != 'To Do']
+    wip_data = wip_data.sort_values(['in_progress'])
+
+    date_range = pandas.date_range(start=since, end=until, inclusive='left', freq='D')
+
+    wip = pandas.DataFrame(columns=['Date', 'Work In Progress'])
+
+    for date in date_range:
+        date_changes = wip_data
+        date_changes = date_changes[date_changes['in_progress_day'] <= date]
+        date_changes = date_changes[(date_changes['complete_day'].isnull()) | (date_changes['complete_day'] > date)]
+
+        row = dict()
+        row['Date'] = [date]
+        row['Work In Progress'] = [len(date_changes)]
+        row_frame = pandas.DataFrame(row)
+        wip = pandas.concat([wip, row_frame], ignore_index=True)
+
+    wip = wip.set_index('Date')
+    wip = wip.reindex(date_range).fillna(0).astype(int).rename_axis('Date')
+
+    wip['Moving Average (10 days)'] = wip['Work In Progress'].rolling(window=10).mean()
+    wip['Moving Standard Deviation (10 days)'] = wip['Work In Progress'].rolling(window=10).std()
+    wip['Average'] = wip['Work In Progress'].mean()
+    wip['Standard Deviation'] = wip['Work In Progress'].std()
+
+    # Resample to also provide how much wip we have at the end of each week
+    wip_per_week = pandas.DataFrame(wip['Work In Progress'].resample('W-Mon').last())
+
+    wip_per_week['Moving Average (4 weeks)'] = wip_per_week['Work In Progress'].rolling(window=4).mean()
+    wip_per_week['Moving Standard Deviation (4 weeks)'] = wip_per_week['Work In Progress'].rolling(window=4).std()
+    wip_per_week['Average'] = wip_per_week['Work In Progress'].mean()
+    wip_per_week['Standard Deviation'] = wip_per_week['Work In Progress'].std()
+
+    return wip, wip_per_week
+
+
 def cmd_summary(output, issue_data, since='', until=''):
     # Current lead time
     lt = process_lead_data(issue_data, since=since, until=until)
@@ -458,7 +499,7 @@ def cmd_summary(output, issue_data, since='', until=''):
     t, tw = process_throughput_data(issue_data, since=since, until=until)
 
     # Current wip
-    w, ww = process_wip_data(issue_data, since=since, until=until)  # TBD
+    w, ww = process_wip_data(issue_data, since=since, until=until)
     a = process_wip_age_data(issue_data, since=since, until=until)  # TBD
 
     lead_time = pandas.DataFrame.from_records([
