@@ -725,6 +725,46 @@ def process_flow_data(data, since='', until=''):
     return f
 
 
+def plot_flow_trendlines(flow_data, status_columns=None, ax=None):
+
+    if status_columns is None:
+        status_columns = flow_data.columns
+
+    flow_columns = list(reversed(status_columns))
+
+    flow = flow_data[flow_columns]
+    flow.index = pandas.to_datetime(flow.index)
+
+    g = None
+    lastly = 0
+    for i, col in enumerate(reversed(flow_columns)):
+        y = (flow[col] + lastly).astype(float)
+        g = plot_correlation(flow.reset_index().index, y, color=f'C{i}', ax=ax)  # TBD
+        lastly = y
+
+    if not g:
+        return
+
+    g.set_title(f"Cumulative Flow Since {flow.index.min().strftime('%Y-%m-%d')}",
+                loc='left',
+                fontdict={'fontsize': 18,
+                          'fontweight': 'normal'})
+
+    g.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(5))
+    ticks_loc = g.get_xticks().tolist()
+    g.xaxis.set_major_locator(matplotlib.ticker.FixedLocator(ticks_loc))
+    labels = [flow.reset_index().iloc[min(int(x), len(flow)-1)]['Date'].strftime('%Y-%m-%d') for x in g.get_xticks()]
+    g.set_xticklabels(labels)
+
+    g.set_ylabel('Items')
+    g.set_xlabel('Timeline')
+    g.set_ylim(ymin=0)
+
+    g.legend(list(reversed(flow_columns)))
+
+    return g
+
+
 def cmd_detail_flow(output,
                     data,
                     since='',
@@ -744,7 +784,7 @@ def cmd_detail_flow(output,
         fig, ax = matplotlib.pyplot.subplots(1, 1, dpi=150, figsize=(15, 10))
 
         if plot_trendline:
-            plot_flow_trendlines(flow_data, status_columns=columns, ax=ax)  # TBD
+            plot_flow_trendlines(flow_data, status_columns=columns, ax=ax)
         else:
             plot_flow(flow_data, status_columns=columns, ax=ax)  # TBD
 
