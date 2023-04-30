@@ -1313,12 +1313,21 @@ def run(args):
                                 window=args.window)
 
     if args.command == 'forecast' and args.forecast_type == 'points' and args.n:
-        cmd_forecast_points_n(output, i, since=since, until=until, n=args.n, simulations=args.simulations,
+        cmd_forecast_points_n(output,
+                              i,
+                              since=since,
+                              until=until,
+                              n=args.n,
+                              simulations=args.simulations,
                               window=args.window)
 
     if args.command == 'forecast' and args.forecast_type == 'points' and args.days:
-        cmd_forecast_points_days(output, i, since=since, until=until, days=args.days, simulations=args.simulations,
-                                 # TBD
+        cmd_forecast_points_days(output,
+                                 i,
+                                 since=since,
+                                 until=until,
+                                 days=args.days,
+                                 simulations=args.simulations,
                                  window=args.window)
 
     # Calc shell data
