@@ -1616,6 +1616,12 @@ def main():
 
     args = parser.parse_args()
 
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.WARN if args.quiet else logging.INFO)
+    ch.setFormatter(Formatter())
+    logger.addHandler(ch)
+    logger.setLevel(logging.WARN if args.quiet else logging.INFO)
+
     if args.command is None:
         parser.print_help()
         return
