@@ -1046,6 +1046,48 @@ def cmd_survival_wb(output, issue_data, since='', until=''):
                           wb_summary)
 
 
+def forecast_montecarlo_how_long_items(throughput_data, items=10, simulations=10000, window=90):
+    # Forecast number of days it will take to complete n number of items based on historical throughput
+    if throughput_data.empty:
+        logger.warning('Data for Monte-Carlo analysis is empty')
+        return
+
+    SIMULATION_ITEMS = items
+    SIMULATIONS = simulations
+    LAST_DAYS = window
+
+    logger.info('Running Monte-Carlo analysis...')
+
+    def simulate_days(data, scope):
+        days = 0
+        total = 0
+        while total <= scope:
+            total += data.sample(n=1).iloc[0]['Throughput']
+            days += 1
+        return days
+
+    dataset = throughput_data[['Throughput']].tail(LAST_DAYS).reset_index(drop=True)
+    count = len(dataset)
+    if count < window:
+        logger.warning(f'Montecarlo window ({window}) is larger than throughput dataset ({count}). '
+                       f'Try increasing your date filter to include more observations '
+                       f'or decreasing the forecast window size.')
+
+    samples = []
+    for i in range(SIMULATIONS):
+        if (i+1) % 1000 == 0:
+            logger.info(f'-> {i+1} simulations run')
+        samples.append(simulate_days(dataset, SIMULATION_ITEMS))
+    logger.info('---')
+    samples = pandas.DataFrame(samples, columns=['Days'])
+    distribution_how_long = samples.groupby(['Days']).size().reset_index(name='Frequency')
+    distribution_how_long = distribution_how_long.sort_index(ascending=False)
+    frequency_sum = distribution_how_long.Frequency.cumsum()/distribution_how_long.Frequency.sum()
+    distribution_how_long['Probability'] = 100 - 100 * frequency_sum
+
+    return distribution_how_long, samples
+
+
 def cmd_forecast_items_n(output, issue_data, since='', until='', n=10, simulations=10000, window=90):
     # Process forecast items n command
     # pre-req
