@@ -21,6 +21,15 @@ class AnalysisException(Exception):
     pass
 
 
+class Formatter(logging.Formatter):
+    def format(self, record):
+        if record.levelno == logging.INFO:
+            self._style._fmt = "%(message)s"
+        else:
+            self._style._fmt = "%(levelname)s: %(message)s"
+        return super().format(record)
+
+
 def init():
     register_matplotlib_converters()
     matplotlib.pyplot.style.use('fivethirtyeight')
