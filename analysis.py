@@ -337,6 +337,94 @@ def process_issue_data(data,
     return issue_data, extra
 
 
+def cmd_summary(output, issue_data, since='', until=''):
+
+    # Current lead time
+    lt = process_lead_data(issue_data, since=since, until=until)  # TBD
+
+    # Current cycle time
+    c = process_cycle_data(issue_data, since=since, until=until)  # TBD
+
+    # Current throughput
+    t, tw = process_throughput_data(issue_data, since=since, until=until)  # TBD
+
+    # Current wip
+    w, ww = process_wip_data(issue_data, since=since, until=until)  # TBD
+    a = process_wip_age_data(issue_data, since=since, until=until)  # TBD
+
+    lead_time = pandas.DataFrame.from_records([
+        ('Average', lt['Average'].iat[-1]),
+        ('Standard Deviation', lt['Standard Deviation'].iat[-1]),
+        ('Moving Average (10 items)', lt['Moving Average (10 items)'].iat[-1]),
+        ('Moving Standard Deviation (10 items)', lt['Moving Standard Deviation (10 items)'].iat[-1]),
+        ],
+        columns=('Metric', 'Value'),
+        index='Metric')
+
+    cycle_time = pandas.DataFrame.from_records([
+        ('Average', c['Average'].iat[-1]),
+        ('Standard Deviation', c['Standard Deviation'].iat[-1]),
+        ('Moving Average (10 items)', c['Moving Average (10 items)'].iat[-1]),
+        ('Moving Standard Deviation (10 items)', c['Moving Standard Deviation (10 items)'].iat[-1]),
+        ],
+        columns=('Metric', 'Value'),
+        index='Metric')
+
+    throughput = pandas.DataFrame.from_records([
+        ('Average', t['Average'].iat[-1]),
+        ('Standard Deviation', t['Standard Deviation'].iat[-1]),
+        ('Moving Average (10 days)', t['Moving Average (10 days)'].iat[-1]),
+        ('Moving Standard Deviation (10 days)', t['Moving Standard Deviation (10 days)'].iat[-1]),
+        ],
+        columns=('Metric', 'Value'),
+        index='Metric')
+
+    throughput_weekly = pandas.DataFrame.from_records([
+        ('Average', tw['Average'].iat[-1]),
+        ('Standard Deviation', tw['Standard Deviation'].iat[-1]),
+        ('Moving Average (4 weeks)', tw['Moving Average (4 weeks)'].iat[-1]),
+        ('Moving Standard Deviation (4 weeks)', tw['Moving Standard Deviation (4 weeks)'].iat[-1]),
+        ],
+        columns=('Metric', 'Value'),
+        index='Metric')
+
+    wip = pandas.DataFrame.from_records([
+        ('Average', w['Average'].iat[-1]),
+        ('Standard Deviation', w['Standard Deviation'].iat[-1]),
+        ('Moving Average (10 days)', w['Moving Average (10 days)'].iat[-1]),
+        ('Moving Standard Deviation (10 days)', w['Moving Standard Deviation (10 days)'].iat[-1]),
+        ],
+        columns=('Metric', 'Value'),
+        index='Metric')
+
+    wip_weekly = pandas.DataFrame.from_records([
+        ('Average', ww['Average'].iat[-1]),
+        ('Standard Deviation', ww['Standard Deviation'].iat[-1]),
+        ('Moving Average (4 weeks)', ww['Moving Average (4 weeks)'].iat[-1]),
+        ('Moving Standard Deviation (4 weeks)', ww['Moving Standard Deviation (4 weeks)'].iat[-1]),
+        ],
+        columns=('Metric', 'Value'),
+        index='Metric')
+
+    wip_age = pandas.DataFrame.from_records([
+        ('Average', a['Average'].iat[-1]),
+        ('50th Percentile', a['P50'].iat[-1]),
+        ('75th Percentile', a['P75'].iat[-1]),
+        ('85th Percentile', a['P85'].iat[-1]),
+        ('95th Percentile', a['P95'].iat[-1]),
+        ],
+        columns=('Metric', 'Value'),
+        index='Metric')
+
+    output_formatted_data(output, 'Lead Time',                              lead_time)
+    output_formatted_data(output, 'Cycle Time',                             cycle_time)
+    output_formatted_data(output, 'Throughput (Daily)',                     throughput)
+    output_formatted_data(output, 'Throughput (Weekly)',                    throughput_weekly)
+    output_formatted_data(output, 'Work In Progress (Daily)',               wip)
+    output_formatted_data(output, 'Work In Progress (Weekly)',              wip_weekly)
+    output_formatted_data(output, f'Work In Progress Age (ending {until})', wip_age)
+
+
 def run(args):
     data, dupes, filtered = read_data(args.file,
                                       exclude_types=args.exclude_type,
@@ -371,7 +459,7 @@ def run(args):
 
     # Calc summary data
     if args.command == 'summary':
-        cmd_summary(output, i, since=since, until=until)  # TBD
+        cmd_summary(output, i, since=since, until=until)
 
     # Calc detail data
     if args.command == 'detail' and args.detail_type == 'flow':
@@ -413,7 +501,8 @@ def run(args):
                              window=args.window)
 
     if args.command == 'forecast' and args.forecast_type == 'items' and args.days:
-        cmd_forecast_items_days(output, i, since=since, until=until, days=args.days, simulations=args.simulations,  # TBD
+        cmd_forecast_items_days(output, i, since=since, until=until, days=args.days, simulations=args.simulations,
+                                # TBD
                                 window=args.window)
 
     if args.command == 'forecast' and args.forecast_type == 'points' and args.n:
@@ -421,7 +510,8 @@ def run(args):
                               window=args.window)
 
     if args.command == 'forecast' and args.forecast_type == 'points' and args.days:
-        cmd_forecast_points_days(output, i, since=since, until=until, days=args.days, simulations=args.simulations,  # TBD
+        cmd_forecast_points_days(output, i, since=since, until=until, days=args.days, simulations=args.simulations,
+                                 # TBD
                                  window=args.window)
 
     # Calc shell data
