@@ -337,10 +337,38 @@ def process_issue_data(data,
     return issue_data, extra
 
 
-def cmd_summary(output, issue_data, since='', until=''):
+def process_lead_data(issue_data, since='', until=''):
+    if issue_data.empty:
+        logger.warning('Data for lead time analysis is empty')
+        return
 
+    lead_data = issue_data.copy()
+    lead_data = lead_data.sort_values(['complete'])
+
+    if since:
+        lead_data = lead_data[lead_data['complete_day'] >= pandas.to_datetime(since)]
+    if until:
+        lead_data = lead_data[lead_data['complete_day'] < pandas.to_datetime(until)]
+
+    # Drop issues with a lead time less than 1 hour
+    lead_data = lead_data[lead_data['lead_time_days'] > (1 / 24.0)]
+
+    data = pandas.DataFrame()
+    data['Create Date'] = lead_data['new_day']
+    data['Complete Date'] = lead_data['complete_day']
+    data['Lead Time'] = lead_data['lead_time_days']
+    data['Moving Average (10 items)'] = lead_data['lead_time_days'].rolling(window=10).mean()
+    data['Moving Standard Deviation (10 items)'] = lead_data['lead_time_days'].rolling(window=10).std()
+    data['Average'] = lead_data['lead_time_days'].mean()
+    data['Standard Deviation'] = lead_data['lead_time_days'].std()
+    data = data.rename_axis('Work Item')
+
+    return data
+
+
+def cmd_summary(output, issue_data, since='', until=''):
     # Current lead time
-    lt = process_lead_data(issue_data, since=since, until=until)  # TBD
+    lt = process_lead_data(issue_data, since=since, until=until)
 
     # Current cycle time
     c = process_cycle_data(issue_data, since=since, until=until)  # TBD
@@ -357,7 +385,7 @@ def cmd_summary(output, issue_data, since='', until=''):
         ('Standard Deviation', lt['Standard Deviation'].iat[-1]),
         ('Moving Average (10 items)', lt['Moving Average (10 items)'].iat[-1]),
         ('Moving Standard Deviation (10 items)', lt['Moving Standard Deviation (10 items)'].iat[-1]),
-        ],
+    ],
         columns=('Metric', 'Value'),
         index='Metric')
 
@@ -366,7 +394,7 @@ def cmd_summary(output, issue_data, since='', until=''):
         ('Standard Deviation', c['Standard Deviation'].iat[-1]),
         ('Moving Average (10 items)', c['Moving Average (10 items)'].iat[-1]),
         ('Moving Standard Deviation (10 items)', c['Moving Standard Deviation (10 items)'].iat[-1]),
-        ],
+    ],
         columns=('Metric', 'Value'),
         index='Metric')
 
@@ -375,7 +403,7 @@ def cmd_summary(output, issue_data, since='', until=''):
         ('Standard Deviation', t['Standard Deviation'].iat[-1]),
         ('Moving Average (10 days)', t['Moving Average (10 days)'].iat[-1]),
         ('Moving Standard Deviation (10 days)', t['Moving Standard Deviation (10 days)'].iat[-1]),
-        ],
+    ],
         columns=('Metric', 'Value'),
         index='Metric')
 
@@ -384,7 +412,7 @@ def cmd_summary(output, issue_data, since='', until=''):
         ('Standard Deviation', tw['Standard Deviation'].iat[-1]),
         ('Moving Average (4 weeks)', tw['Moving Average (4 weeks)'].iat[-1]),
         ('Moving Standard Deviation (4 weeks)', tw['Moving Standard Deviation (4 weeks)'].iat[-1]),
-        ],
+    ],
         columns=('Metric', 'Value'),
         index='Metric')
 
@@ -393,7 +421,7 @@ def cmd_summary(output, issue_data, since='', until=''):
         ('Standard Deviation', w['Standard Deviation'].iat[-1]),
         ('Moving Average (10 days)', w['Moving Average (10 days)'].iat[-1]),
         ('Moving Standard Deviation (10 days)', w['Moving Standard Deviation (10 days)'].iat[-1]),
-        ],
+    ],
         columns=('Metric', 'Value'),
         index='Metric')
 
@@ -402,7 +430,7 @@ def cmd_summary(output, issue_data, since='', until=''):
         ('Standard Deviation', ww['Standard Deviation'].iat[-1]),
         ('Moving Average (4 weeks)', ww['Moving Average (4 weeks)'].iat[-1]),
         ('Moving Standard Deviation (4 weeks)', ww['Moving Standard Deviation (4 weeks)'].iat[-1]),
-        ],
+    ],
         columns=('Metric', 'Value'),
         index='Metric')
 
@@ -412,16 +440,16 @@ def cmd_summary(output, issue_data, since='', until=''):
         ('75th Percentile', a['P75'].iat[-1]),
         ('85th Percentile', a['P85'].iat[-1]),
         ('95th Percentile', a['P95'].iat[-1]),
-        ],
+    ],
         columns=('Metric', 'Value'),
         index='Metric')
 
-    output_formatted_data(output, 'Lead Time',                              lead_time)
-    output_formatted_data(output, 'Cycle Time',                             cycle_time)
-    output_formatted_data(output, 'Throughput (Daily)',                     throughput)
-    output_formatted_data(output, 'Throughput (Weekly)',                    throughput_weekly)
-    output_formatted_data(output, 'Work In Progress (Daily)',               wip)
-    output_formatted_data(output, 'Work In Progress (Weekly)',              wip_weekly)
+    output_formatted_data(output, 'Lead Time', lead_time)
+    output_formatted_data(output, 'Cycle Time', cycle_time)
+    output_formatted_data(output, 'Throughput (Daily)', throughput)
+    output_formatted_data(output, 'Throughput (Weekly)', throughput_weekly)
+    output_formatted_data(output, 'Work In Progress (Daily)', wip)
+    output_formatted_data(output, 'Work In Progress (Weekly)', wip_weekly)
     output_formatted_data(output, f'Work In Progress Age (ending {until})', wip_age)
 
 
