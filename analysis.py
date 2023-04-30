@@ -1240,8 +1240,12 @@ def run(args):
                              window=args.window)
 
     if args.command == 'forecast' and args.forecast_type == 'items' and args.days:
-        cmd_forecast_items_days(output, i, since=since, until=until, days=args.days, simulations=args.simulations,
-                                # TBD
+        cmd_forecast_items_days(output,
+                                i,
+                                since=since,
+                                until=until,
+                                days=args.days,
+                                simulations=args.simulations,
                                 window=args.window)
 
     if args.command == 'forecast' and args.forecast_type == 'points' and args.n:
