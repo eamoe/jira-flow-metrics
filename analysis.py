@@ -1168,7 +1168,9 @@ def cmd_forecast_points_n(output, issue_data, since='', until='', n=10, simulati
 
     forecast_summary = pandas.DataFrame.from_records([
         (f'{int(q*100)}%', s.Days.quantile(q)) for q in (0.25, 0.5, 0.75, 0.85, 0.95, 0.999)
-    ], columns=('Probability', 'Days'), index='Probability')
+        ],
+        columns=('Probability', 'Days'),
+        index='Probability')
 
     output_formatted_data(output,
                           f'Montecarlo Forecast: Within how many days can {n} points be completed?',
