@@ -6,6 +6,7 @@ import pandas
 from pandas.plotting import register_matplotlib_converters
 import collections
 import numpy
+import seaborn
 
 logger = logging.getLogger(__file__)
 if __name__ != '__main__':
@@ -725,6 +726,11 @@ def process_flow_data(data, since='', until=''):
     return f
 
 
+def plot_correlation(x, y, color='xkcd:muted blue', ax=None):
+    # plot a Pearson regression between two sets (usually issue_points and cycle_time_days)
+    return seaborn.regplot(x=x, y=y, color=color, ax=ax)
+
+
 def plot_flow_trendlines(flow_data, status_columns=None, ax=None):
 
     if status_columns is None:
@@ -739,7 +745,7 @@ def plot_flow_trendlines(flow_data, status_columns=None, ax=None):
     lastly = 0
     for i, col in enumerate(reversed(flow_columns)):
         y = (flow[col] + lastly).astype(float)
-        g = plot_correlation(flow.reset_index().index, y, color=f'C{i}', ax=ax)  # TBD
+        g = plot_correlation(flow.reset_index().index, y, color=f'C{i}', ax=ax)
         lastly = y
 
     if not g:
