@@ -985,6 +985,21 @@ def cmd_correlation(output, issue_data, since='', until='', plot=None):
         fig.savefig(plot)
 
 
+def cmd_survival_km(output, issue_data, since='', until=''):
+    # Process survival analysis using Kaplan-Meier
+    m, _ = analyze_survival_km(issue_data, since=since, until=until)  # TBD
+
+    km_summary = pandas.DataFrame.from_records([
+        (f'{int(q * 100)}%', m.percentile(1 - q)) for q in (0.25, 0.5, 0.75, 0.85, 0.95, 0.999)
+        ],
+        columns=('Probability', 'Days'),
+        index='Probability')
+
+    output_formatted_data(output,
+                          'Kaplan-Meier Estimation: Within how many days can a single work item be completed?',
+                          km_summary)
+
+
 def run(args):
     data, dupes, filtered = read_data(args.file,
                                       exclude_types=args.exclude_type,
@@ -1050,7 +1065,7 @@ def run(args):
 
     # Calc survival data
     if args.command == 'survival' and args.survival_type == 'km':
-        cmd_survival_km(output, i, since=since, until=until)  # TBD
+        cmd_survival_km(output, i, since=since, until=until)
 
     if args.command == 'survival' and args.survival_type == 'wb':
         cmd_survival_wb(output, i, since=since, until=until)  # TBD
