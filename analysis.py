@@ -771,6 +771,69 @@ def plot_flow_trendlines(flow_data, status_columns=None, ax=None):
     return g
 
 
+def plot_flow(flow_data, status_columns=None, ax=None):
+
+    if status_columns is None:
+        status_columns = flow_data.columns
+
+    flow_columns = list(reversed(status_columns))
+    last_col = flow_columns[-1]
+
+    flow = flow_data[flow_columns]
+    flow.index = pandas.to_datetime(flow.index)
+
+    # y_min is the minimum of the last stage
+    y_min = flow[last_col].min()
+
+    # y_max is the maximum of the sums
+    y_max = flow[flow_columns].sum(axis=1).max()
+
+    # Create the individual area counts for each status
+    flow_agg = flow.copy()
+
+    ys = []
+    for col in reversed(flow_columns):
+        lastly = ys[-1] if ys else 0
+        y = flow_agg[col] = (flow[col] + lastly).astype(float)
+        ys.append(y)
+
+    # Melt the data to be able to be sent to lineplot
+    flow_melted = pandas.melt(flow_agg.reset_index(), ['Date'])
+    flow_melted['value'] = flow_melted['value'].astype(float)
+
+    # Plot the lines
+    g = seaborn.lineplot(data=flow_melted,
+                         x='Date',
+                         y='value',
+                         hue='variable',
+                         palette=list(reversed([f'C{i}' for i in range(len(ys))])),
+                         ax=ax)
+
+    # Fill between the lines
+    lastly = 0
+    for i, y in enumerate(ys):
+        g.fill_between(flow_agg.index, lastly, y, color=f'C{i}', alpha=0.7, interpolate=False)
+        lastly = y
+
+    # Label everything
+    g.set_title(f"Cumulative Flow Since {flow_agg.index.min().strftime('%Y-%m-%d')}",
+                loc='left',
+                fontdict={'fontsize': 18,
+                          'fontweight': 'normal'})
+
+    g.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(5))
+    ticks_loc = g.get_xticks().tolist()
+    g.xaxis.set_major_locator(matplotlib.ticker.FixedLocator(ticks_loc))
+
+    g.set_xlabel('Timeline')
+    g.set_ylabel('Items')
+
+    tenth = (y_max-y_min)*0.1
+    g.set_ylim([y_min - tenth, y_max + 2*tenth])
+
+    return g
+
+
 def cmd_detail_flow(output,
                     data,
                     since='',
