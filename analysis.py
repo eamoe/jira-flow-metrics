@@ -1159,6 +1159,22 @@ def cmd_forecast_items_days(output, issue_data, since='', until='', days=10, sim
                           forecast_summary)
 
 
+def cmd_forecast_points_n(output, issue_data, since='', until='', n=10, simulations=10000, window=90):
+    # Process forecast points n command
+    # pre-req
+    t, tw = process_throughput_data(issue_data, since=since, until=until)
+    # analysis
+    ml, s = forecast_montecarlo_how_long_points(t, points=n, simulations=simulations, window=window)
+
+    forecast_summary = pandas.DataFrame.from_records([
+        (f'{int(q*100)}%', s.Days.quantile(q)) for q in (0.25, 0.5, 0.75, 0.85, 0.95, 0.999)
+    ], columns=('Probability', 'Days'), index='Probability')
+
+    output_formatted_data(output,
+                          f'Montecarlo Forecast: Within how many days can {n} points be completed?',
+                          forecast_summary)
+
+
 def run(args):
     data, dupes, filtered = read_data(args.file,
                                       exclude_types=args.exclude_type,
@@ -1249,7 +1265,7 @@ def run(args):
                                 window=args.window)
 
     if args.command == 'forecast' and args.forecast_type == 'points' and args.n:
-        cmd_forecast_points_n(output, i, since=since, until=until, n=args.n, simulations=args.simulations,  # TBD
+        cmd_forecast_points_n(output, i, since=since, until=until, n=args.n, simulations=args.simulations,
                               window=args.window)
 
     if args.command == 'forecast' and args.forecast_type == 'points' and args.days:
