@@ -364,7 +364,10 @@ def run(args):
     output = args.output
 
     # Preprocess issue data
-    i, _ = process_issue_data(data, since=since, until=until, exclude_weekends=exclude_weekends)
+    i, _ = process_issue_data(data,
+                              since=since,
+                              until=until,
+                              exclude_weekends=exclude_weekends)
 
     # Calc summary data
     if args.command == 'summary':
