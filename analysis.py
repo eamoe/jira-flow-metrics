@@ -366,15 +366,96 @@ def process_lead_data(issue_data, since='', until=''):
     return data
 
 
+def process_cycle_data(issue_data, since='', until=''):
+
+    if issue_data.empty:
+        logger.warning('Data for cycle analysis is empty')
+        return
+
+    cycle_data = issue_data.copy()
+    cycle_data = cycle_data.sort_values(['complete'])
+
+    if since:
+        cycle_data = cycle_data[cycle_data['complete_day'] >= pandas.to_datetime(since)]
+    if until:
+        cycle_data = cycle_data[cycle_data['complete_day'] < pandas.to_datetime(until)]
+
+    # Drop issues with a cycle time less than 1 hour
+    cycle_data = cycle_data[cycle_data['cycle_time_days'] > (1/24.0)]
+
+    data = pandas.DataFrame()
+    data['In Progress Date'] = cycle_data['in_progress_day']
+    data['Complete Date'] = cycle_data['complete_day']
+    data['Cycle Time'] = cycle_data['cycle_time_days']
+    data['Moving Average (10 items)'] = cycle_data['cycle_time_days'].rolling(window=10).mean()
+    data['Moving Standard Deviation (10 items)'] = cycle_data['cycle_time_days'].rolling(window=10).std()
+    data['Average'] = cycle_data['cycle_time_days'].mean()
+    data['Standard Deviation'] = cycle_data['cycle_time_days'].std()
+    data = data.rename_axis('Work Item')
+
+    return data
+
+
+def process_throughput_data(issue_data, since='', until=''):
+
+    if issue_data.empty:
+        logger.warning('Data for throughput analysis is empty')
+        return
+
+    throughput_data = issue_data.copy()
+    throughput_data = throughput_data.sort_values(['complete'])
+
+    if since:
+        throughput_data = throughput_data[throughput_data['complete_day'] >= pandas.to_datetime(since)]
+    if until:
+        throughput_data = throughput_data[throughput_data['complete_day'] < pandas.to_datetime(until)]
+
+    points_data = pandas.pivot_table(throughput_data, values='issue_points', index='complete_day', aggfunc=numpy.sum)
+
+    throughput = pandas.crosstab(throughput_data.complete_day, issue_data.issue_type, colnames=[None]).reset_index()
+
+    date_range = pandas.date_range(start=since, end=until, inclusive='left', freq='D')
+
+    cols = set(throughput.columns)
+    if 'complete_day' in cols:
+        cols.remove('complete_day')
+
+    throughput['Throughput'] = 0
+    for col in cols:
+        throughput['Throughput'] += throughput[col]
+
+    throughput = throughput.set_index('complete_day')
+    throughput['Velocity'] = points_data['issue_points']
+
+    throughput = throughput.reindex(date_range).fillna(0).astype(int).rename_axis('Date')
+
+    throughput['Moving Average (10 days)'] = throughput['Throughput'].rolling(window=10).mean()
+    throughput['Moving Standard Deviation (10 days)'] = throughput['Throughput'].rolling(window=10).std()
+    throughput['Average'] = throughput['Throughput'].mean()
+    throughput['Standard Deviation'] = throughput['Throughput'].std()
+
+    throughput_per_week = pandas.DataFrame(
+        throughput['Throughput'].resample('W-Mon').sum()
+    )
+
+    throughput_per_week['Moving Average (4 weeks)'] = throughput_per_week['Throughput'].rolling(window=4).mean()
+    standard_deviation = throughput_per_week['Throughput'].rolling(window=4).std()
+    throughput_per_week['Moving Standard Deviation (4 weeks)'] = standard_deviation
+    throughput_per_week['Average'] = throughput_per_week['Throughput'].mean()
+    throughput_per_week['Standard Deviation'] = throughput_per_week['Throughput'].std()
+
+    return throughput, throughput_per_week
+
+
 def cmd_summary(output, issue_data, since='', until=''):
     # Current lead time
     lt = process_lead_data(issue_data, since=since, until=until)
 
     # Current cycle time
-    c = process_cycle_data(issue_data, since=since, until=until)  # TBD
+    c = process_cycle_data(issue_data, since=since, until=until)
 
     # Current throughput
-    t, tw = process_throughput_data(issue_data, since=since, until=until)  # TBD
+    t, tw = process_throughput_data(issue_data, since=since, until=until)
 
     # Current wip
     w, ww = process_wip_data(issue_data, since=since, until=until)  # TBD
