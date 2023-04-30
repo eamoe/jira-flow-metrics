@@ -1046,6 +1046,24 @@ def cmd_survival_wb(output, issue_data, since='', until=''):
                           wb_summary)
 
 
+def cmd_forecast_items_n(output, issue_data, since='', until='', n=10, simulations=10000, window=90):
+    # Process forecast items n command
+    # pre-req
+    t, tw = process_throughput_data(issue_data, since=since, until=until)
+    # analysis
+    ml, s = forecast_montecarlo_how_long_items(t, items=n, simulations=simulations, window=window)
+
+    forecast_summary = pandas.DataFrame.from_records([
+        (f'{int(q*100)}%', s.Days.quantile(q)) for q in (0.25, 0.5, 0.75, 0.85, 0.95, 0.999)
+        ],
+        columns=('Probability', 'Days'),
+        index='Probability')
+
+    output_formatted_data(output,
+                          f'Montecarlo Forecast: Within how many days can {n} work items be completed?',
+                          forecast_summary)
+
+
 def run(args):
     data, dupes, filtered = read_data(args.file,
                                       exclude_types=args.exclude_type,
@@ -1118,7 +1136,12 @@ def run(args):
 
     # Calc forecast data
     if args.command == 'forecast' and args.forecast_type == 'items' and args.n:
-        cmd_forecast_items_n(output, i, since=since, until=until, n=args.n, simulations=args.simulations,  # TBD
+        cmd_forecast_items_n(output,
+                             i,
+                             since=since,
+                             until=until,
+                             n=args.n,
+                             simulations=args.simulations,
                              window=args.window)
 
     if args.command == 'forecast' and args.forecast_type == 'items' and args.days:
