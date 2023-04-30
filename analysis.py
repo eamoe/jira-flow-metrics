@@ -7,6 +7,7 @@ from pandas.plotting import register_matplotlib_converters
 import collections
 import numpy
 import seaborn
+import math
 
 logger = logging.getLogger(__file__)
 if __name__ != '__main__':
@@ -732,7 +733,6 @@ def plot_correlation(x, y, color='xkcd:muted blue', ax=None):
 
 
 def plot_flow_trendlines(flow_data, status_columns=None, ax=None):
-
     if status_columns is None:
         status_columns = flow_data.columns
 
@@ -759,7 +759,7 @@ def plot_flow_trendlines(flow_data, status_columns=None, ax=None):
     g.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(5))
     ticks_loc = g.get_xticks().tolist()
     g.xaxis.set_major_locator(matplotlib.ticker.FixedLocator(ticks_loc))
-    labels = [flow.reset_index().iloc[min(int(x), len(flow)-1)]['Date'].strftime('%Y-%m-%d') for x in g.get_xticks()]
+    labels = [flow.reset_index().iloc[min(int(x), len(flow) - 1)]['Date'].strftime('%Y-%m-%d') for x in g.get_xticks()]
     g.set_xticklabels(labels)
 
     g.set_ylabel('Items')
@@ -772,7 +772,6 @@ def plot_flow_trendlines(flow_data, status_columns=None, ax=None):
 
 
 def plot_flow(flow_data, status_columns=None, ax=None):
-
     if status_columns is None:
         status_columns = flow_data.columns
 
@@ -828,8 +827,8 @@ def plot_flow(flow_data, status_columns=None, ax=None):
     g.set_xlabel('Timeline')
     g.set_ylabel('Items')
 
-    tenth = (y_max-y_min)*0.1
-    g.set_ylim([y_min - tenth, y_max + 2*tenth])
+    tenth = (y_max - y_min) * 0.1
+    g.set_ylim([y_min - tenth, y_max + 2 * tenth])
 
     return g
 
@@ -861,7 +860,6 @@ def cmd_detail_flow(output,
 
 
 def cmd_detail_wip(output, issue_data, wip_type='', since='', until=''):
-
     # Current wip
     w, ww = process_wip_data(issue_data, since=since, until=until)
     a = process_wip_age_data(issue_data, since=since, until=until)
@@ -878,7 +876,6 @@ def cmd_detail_wip(output, issue_data, wip_type='', since='', until=''):
 
 
 def cmd_detail_throughput(output, issue_data, since='', until='', throughput_type=''):
-
     # Current throughput
     t, tw = process_throughput_data(issue_data, since=since, until=until)
 
@@ -890,17 +887,96 @@ def cmd_detail_throughput(output, issue_data, since='', until='', throughput_typ
 
 
 def cmd_detail_cycletime(output, issue_data, since='', until=''):
-
     # Current cycle time
     c = process_cycle_data(issue_data, since=since, until=until)
     output_formatted_data(output, 'Cycle Time', c)
 
 
 def cmd_detail_leadtime(output, issue_data, since='', until=''):
-
     # Current lead time
     c = process_lead_data(issue_data, since=since, until=until)
     output_formatted_data(output, 'Lead Time', c)
+
+
+def cmd_correlation(output, issue_data, since='', until='', plot=None):
+    points = issue_data['issue_points'].values.astype(float)
+    lead_time = issue_data['lead_time_days'].values.astype(float)
+    cycle_time = issue_data['cycle_time_days'].values.astype(float)
+    cycle_result = process_correlation(points, cycle_time)  # TBD
+    lead_result = process_correlation(points, lead_time)  # TBD
+
+    point_summary = pandas.DataFrame.from_records([
+        ('Observations', issue_data['issue_points'].count()),
+        ('Min', issue_data['issue_points'].min()),
+        ('Max', issue_data['issue_points'].max()),
+        ('Average', issue_data['issue_points'].mean()),
+        ('Standard Deviation', issue_data['issue_points'].std()),
+    ],
+        columns=('Metric', 'Value'),
+        index='Metric')
+
+    cycle_correlation_summary = pandas.DataFrame.from_records([
+        ('Observations (n)', cycle_result['n'].iat[0]),
+        ('Correlation Coefficient (r)', cycle_result['r'].iat[0]),
+        ('Determination Coefficient (r^2)', math.pow(cycle_result['r'].iat[0], 2)),
+        ('P-Value (p)', cycle_result['p-val'].iat[0]),
+        ('Likelihood of detecting effect (power)', cycle_result['power'].iat[0]),
+        ('Significance (p <= 0.05)', 'significant' if cycle_result['p-val'].iat[0] <= 0.05 else 'not significant'),
+    ],
+        columns=('Metric', 'Value'),
+        index='Metric')
+
+    lead_correlation_summary = pandas.DataFrame.from_records([
+        ('Observations (n)', lead_result['n'].iat[0]),
+        ('Correlation Coefficient (r)', lead_result['r'].iat[0]),
+        ('Determination Coefficient (r^2)', math.pow(lead_result['r'].iat[0], 2)),
+        ('P-Value (p)', lead_result['p-val'].iat[0]),
+        ('Likelihood of detecting effect (power)', lead_result['power'].iat[0]),
+        ('Significance (p <= 0.05)', 'significant' if lead_result['p-val'].iat[0] <= 0.05 else 'not significant'),
+    ],
+        columns=('Metric', 'Value'),
+        index='Metric')
+
+    output_formatted_data(output, 'Points', point_summary)
+    output_formatted_data(output, 'Points', point_summary)
+    output_formatted_data(output, 'Point Correlation to Cycle Time', cycle_correlation_summary)
+    output_formatted_data(output, 'Point Correlation to Lead Time', lead_correlation_summary)
+
+    if plot:
+        fig, (ax1, ax2) = matplotlib.pyplot.subplots(1, 2, dpi=150, figsize=(15, 10))
+        fig.suptitle(f'Point Correlation from {since} to {until}',
+                     fontproperties={'size': 20,
+                                     'weight': 'normal'})
+
+        # Cycle time
+        ax = plot_correlation(points, cycle_time, ax=ax1)
+        ax.set_title('Point Correlation to Cycle Time', y=1.02, loc='left',
+                     fontdict={'size': 18, 'weight': 'normal'})
+        subtitle = '{} (n: {} r: {:.2f} p: {:.2f} α: 0.05)'.format(
+            'Significant' if cycle_result['p-val'].iat[0] <= 0.05 else 'Not Significant',
+            cycle_result['n'].iat[0],
+            cycle_result['r'].iat[0],
+            cycle_result['p-val'].iat[0])
+        ax.text(x=0, y=1, s=subtitle, fontsize=14, ha='left', va='center', transform=ax.transAxes)
+        ax.set_ylabel('Cycle Time (days)')
+        ax.set_xlabel('Issue Points')
+        ax.set_xlim((1, issue_data['issue_points'].max() + 0.1))
+
+        # lead time
+        ax = plot_correlation(points, lead_time, ax=ax2)
+        ax.set_title('Point Correlation to Lead Time', y=1.02, loc='left',
+                     fontdict={'size': 18, 'weight': 'normal'})
+        subtitle = '{} (n: {} r: {:.2f} p: {:.2f} α: 0.05)'.format(
+            'Significant' if lead_result['p-val'].iat[0] <= 0.05 else 'Not Significant',
+            lead_result['n'].iat[0],
+            lead_result['r'].iat[0],
+            lead_result['p-val'].iat[0])
+        ax.text(x=0, y=1, s=subtitle, fontsize=14, ha='left', va='center', transform=ax.transAxes)
+        ax.set_ylabel('Lead Time (days)')
+        ax.set_xlabel('Issue Points')
+        ax.set_xlim((1, issue_data['issue_points'].max() + 0.1))
+
+        fig.savefig(plot)
 
 
 def run(args):
@@ -964,7 +1040,7 @@ def run(args):
 
     # Calc correlation data
     if args.command == 'correlation':
-        cmd_correlation(output, i, since=since, until=until, plot=args.output_plot)  # TBD
+        cmd_correlation(output, i, since=since, until=until, plot=args.output_plot)
 
     # Calc survival data
     if args.command == 'survival' and args.survival_type == 'km':
