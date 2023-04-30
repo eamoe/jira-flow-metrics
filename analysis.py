@@ -1003,7 +1003,7 @@ def analyze_survival_km(issue_data, since='', until=''):
 
 def cmd_survival_km(output, issue_data, since='', until=''):
     # Process survival analysis using Kaplan-Meier
-    m, _ = analyze_survival_km(issue_data, since=since, until=until)  # TBD
+    m, _ = analyze_survival_km(issue_data, since=since, until=until)
 
     km_summary = pandas.DataFrame.from_records([
         (f'{int(q * 100)}%', m.percentile(1 - q)) for q in (0.25, 0.5, 0.75, 0.85, 0.95, 0.999)
