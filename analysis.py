@@ -1159,6 +1159,52 @@ def cmd_forecast_items_days(output, issue_data, since='', until='', days=10, sim
                           forecast_summary)
 
 
+def forecast_montecarlo_how_long_points(throughput_data, points=10, simulations=10000, window=90):
+    # Forecast number of days it will take to complete n number of points based on historical velocity
+    if throughput_data.empty:
+        logger.warning('Data for Montecarlo analysis is empty')
+        return
+
+    SIMULATION_ITEMS = points
+    SIMULATIONS = simulations
+    LAST_DAYS = window
+
+    logger.info('Running Montecarlo analysis...')
+
+    if (throughput_data['Velocity']/throughput_data['Throughput']).max() == 1:
+        logger.warning('All velocity data is equal. Did you load data with points fields?')
+
+    def simulate_days(data, scope):
+        days = 0
+        total = 0
+        while total <= scope:
+            total += data.sample(n=1).iloc[0]['Velocity']
+            days += 1
+        return days
+
+    dataset = throughput_data[['Velocity']].tail(LAST_DAYS).reset_index(drop=True)
+
+    count = len(dataset)
+    if count < window:
+        logger.warning(f'Montecarlo window ({window}) is larger than velocity dataset ({count}). '
+                       f'Try increasing your date filter to include more observations '
+                       f'or decreasing the forecast window size.')
+
+    samples = []
+    for i in range(SIMULATIONS):
+        if (i+1) % 1000 == 0:
+            logger.info(f'-> {i+1} simulations run')
+        samples.append(simulate_days(dataset, SIMULATION_ITEMS))
+    logger.info('---')
+    samples = pandas.DataFrame(samples, columns=['Days'])
+    distribution_how_long = samples.groupby(['Days']).size().reset_index(name='Frequency')
+    distribution_how_long = distribution_how_long.sort_index(ascending=False)
+    frequency_sum = distribution_how_long.Frequency.cumsum()/distribution_how_long.Frequency.sum()
+    distribution_how_long['Probability'] = 100 - 100 * frequency_sum
+
+    return distribution_how_long, samples
+
+
 def cmd_forecast_points_n(output, issue_data, since='', until='', n=10, simulations=10000, window=90):
     # Process forecast points n command
     # pre-req
