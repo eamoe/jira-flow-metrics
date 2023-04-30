@@ -862,7 +862,7 @@ def cmd_detail_flow(output,
 
 def cmd_detail_wip(output, issue_data, wip_type='', since='', until=''):
 
-    # current wip
+    # Current wip
     w, ww = process_wip_data(issue_data, since=since, until=until)
     a = process_wip_age_data(issue_data, since=since, until=until)
 
@@ -875,6 +875,18 @@ def cmd_detail_wip(output, issue_data, wip_type='', since='', until=''):
     if wip_type == 'aging':
         wa = a[['First In Progress', 'Age', 'Stage', 'Age in Stage']]
         output_formatted_data(output, f'Work In Progress Age (ending {until})', wa)
+
+
+def cmd_detail_throughput(output, issue_data, since='', until='', throughput_type=''):
+
+    # Current throughput
+    t, tw = process_throughput_data(issue_data, since=since, until=until)
+
+    if throughput_type == 'daily':
+        output_formatted_data(output, 'Throughput (Daily)', t)
+
+    if throughput_type == 'weekly':
+        output_formatted_data(output, 'Throughput (Weekly)', tw)
 
 
 def run(args):
