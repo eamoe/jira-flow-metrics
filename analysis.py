@@ -1016,6 +1016,21 @@ def cmd_survival_km(output, issue_data, since='', until=''):
                           km_summary)
 
 
+def analyze_survival_wb(issue_data, since='', until=''):
+    # Run a weibull survivability analysis on the issue data
+    survivability_data = issue_data.copy()
+    survivability_data = survivability_data[survivability_data['complete_day'] >= pandas.to_datetime(since)]
+    survivability_data = survivability_data[survivability_data['complete_day'] < pandas.to_datetime(until)]
+    survivability_data = survivability_data.sort_values(['complete_day'])
+
+    durations = [c if c else 0.00001 for c in survivability_data['cycle_time_days']]
+    event_observed = [1 if c else 0 for c in survivability_data['cycle_time_days']]
+
+    wb = lifelines.WeibullFitter()
+
+    return wb.fit(durations, event_observed, label='Weibull Estimate'), wb
+
+
 def cmd_survival_wb(output, issue_data, since='', until=''):
     # process survival analysis using Weibull
     m, _ = analyze_survival_wb(issue_data, since=since, until=until)
