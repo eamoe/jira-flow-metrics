@@ -368,11 +368,11 @@ def run(args):
 
     # Calc summary data
     if args.command == 'summary':
-        cmd_summary(output, i, since=since, until=until)
+        cmd_summary(output, i, since=since, until=until)  # TBD
 
     # Calc detail data
     if args.command == 'detail' and args.detail_type == 'flow':
-        cmd_detail_flow(output,
+        cmd_detail_flow(output,  # TBD
                         data,
                         since=since,
                         until=until,
@@ -382,51 +382,52 @@ def run(args):
                         columns=args.output_columns)
 
     if args.command == 'detail' and args.detail_type == 'wip':
-        cmd_detail_wip(output, i, since=since, until=until, wip_type=args.type)
+        cmd_detail_wip(output, i, since=since, until=until, wip_type=args.type)  # TBD
 
     if args.command == 'detail' and args.detail_type == 'throughput':
-        cmd_detail_throughput(output, i, since=since, until=until, throughput_type=args.type)
+        cmd_detail_throughput(output, i, since=since, until=until, throughput_type=args.type)  # TBD
 
     if args.command == 'detail' and args.detail_type == 'cycletime':
-        cmd_detail_cycletime(output, i, since=since, until=until)
+        cmd_detail_cycletime(output, i, since=since, until=until)  # TBD
 
     if args.command == 'detail' and args.detail_type == 'leadtime':
-        cmd_detail_leadtime(output, i, since=since, until=until)
+        cmd_detail_leadtime(output, i, since=since, until=until)  # TBD
 
     # Calc correlation data
     if args.command == 'correlation':
-        cmd_correlation(output, i, since=since, until=until, plot=args.output_plot)
+        cmd_correlation(output, i, since=since, until=until, plot=args.output_plot)  # TBD
 
     # Calc survival data
     if args.command == 'survival' and args.survival_type == 'km':
-        cmd_survival_km(output, i, since=since, until=until)
+        cmd_survival_km(output, i, since=since, until=until)  # TBD
 
     if args.command == 'survival' and args.survival_type == 'wb':
-        cmd_survival_wb(output, i, since=since, until=until)
+        cmd_survival_wb(output, i, since=since, until=until)  # TBD
 
     # Calc forecast data
     if args.command == 'forecast' and args.forecast_type == 'items' and args.n:
-        cmd_forecast_items_n(output, i, since=since, until=until, n=args.n, simulations=args.simulations,
+        cmd_forecast_items_n(output, i, since=since, until=until, n=args.n, simulations=args.simulations,  # TBD
                              window=args.window)
 
     if args.command == 'forecast' and args.forecast_type == 'items' and args.days:
-        cmd_forecast_items_days(output, i, since=since, until=until, days=args.days, simulations=args.simulations,
+        cmd_forecast_items_days(output, i, since=since, until=until, days=args.days, simulations=args.simulations,  # TBD
                                 window=args.window)
 
     if args.command == 'forecast' and args.forecast_type == 'points' and args.n:
-        cmd_forecast_points_n(output, i, since=since, until=until, n=args.n, simulations=args.simulations,
+        cmd_forecast_points_n(output, i, since=since, until=until, n=args.n, simulations=args.simulations,  # TBD
                               window=args.window)
 
     if args.command == 'forecast' and args.forecast_type == 'points' and args.days:
-        cmd_forecast_points_days(output, i, since=since, until=until, days=args.days, simulations=args.simulations,
+        cmd_forecast_points_days(output, i, since=since, until=until, days=args.days, simulations=args.simulations,  # TBD
                                  window=args.window)
 
     # Calc shell data
     if args.command == 'shell':
-        cmd_shell(output, data, i, since=since, until=until, args=args)
+        cmd_shell(output, data, i, since=since, until=until, args=args)  # TBD
 
 
 def main():
+    # noinspection PyGlobalUndefined
     global output_formatted_data
 
     parser = argparse.ArgumentParser(description='Analyze exported data')
