@@ -4,6 +4,8 @@ import logging
 import matplotlib
 import pandas
 from pandas.plotting import register_matplotlib_converters
+import collections
+import numpy
 
 logger = logging.getLogger(__file__)
 if __name__ != '__main__':
@@ -22,7 +24,6 @@ def init():
 
 
 def read_data(path, exclude_types=None, since='', until=''):
-
     # read csv changelog data with necessary fields:
     # issue_id - unique numeric id for this issue
     # issue_key - unique textual key for this issue
@@ -142,6 +143,200 @@ def output_formatted_data(output,
                                  ] if line)
 
 
+def process_issue_data(data,
+                       since='',
+                       until='',
+                       exclude_weekends=False):
+    if data.empty:
+        logger.warning('Data for issue analysis is empty')
+        return
+
+    # Filter out issues before since date and after until date
+    if since:
+        data = data[data['issue_created_date'] >= pandas.to_datetime(since)]
+    if until:
+        data = data[data['issue_created_date'] < pandas.to_datetime(until)]
+
+    issues = collections.defaultdict(list)
+    issue_ids = dict()
+    issue_keys = dict()
+    issue_types = dict()
+    issue_points = dict()
+    for row, item in data.iterrows():
+        issues[item.issue_id].append(item)
+        issue_types[item.issue_id] = item.issue_type_name
+        issue_ids[item.issue_key] = item.issue_id
+        issue_keys[item.issue_id] = item.issue_key
+        issue_points[item.issue_id] = item.issue_points
+
+    categories = collections.defaultdict(set)
+
+    issue_statuses = collections.defaultdict(dict)
+
+    for issue_id, issue in issues.items():
+        for update in issue:
+            if update.changelog_id is None:
+                continue
+
+            if update.status_to_name:
+                categories[update.status_to_category_name].add(update.status_to_name)
+            if update.status_from_name:
+                categories[update.status_from_category_name].add(update.status_from_name)
+
+            # Find out when the issue was created
+            if not issue_statuses[issue_id].get('first_created'):
+                issue_statuses[issue_id]['first_created'] = update.issue_created_date
+            issue_statuses[issue_id]['first_created'] = min(issue_statuses[issue_id]['first_created'],
+                                                            update.issue_created_date)
+
+            # Find out when the issue was first moved to in progress
+            if update.status_to_category_name == 'In Progress':
+                if not issue_statuses[issue_id].get('first_in_progress'):
+                    issue_statuses[issue_id]['first_in_progress'] = update.status_change_date
+                issue_statuses[issue_id]['first_in_progress'] = min(issue_statuses[issue_id]['first_in_progress'],
+                                                                    update.status_change_date)
+
+            # Find out when the issue was finally moved to completion
+            if update.status_to_category_name == 'Complete' or update.status_to_category_name == 'Done':
+                if not issue_statuses[issue_id].get('last_complete'):
+                    issue_statuses[issue_id]['last_complete'] = update.status_change_date
+                issue_statuses[issue_id]['last_complete'] = max(issue_statuses[issue_id]['last_complete'],
+                                                                update.status_change_date)
+
+            issue_statuses[issue_id]['prev_update'] = issue_statuses.get(issue_id, {}).get('last_update', {})
+            issue_statuses[issue_id]['last_update'] = update
+
+    # Create a new data set of each issue with the dates when the state changes happened.
+    # Compute the lead and cycle times of each issue.
+    issue_data = pandas.DataFrame(columns=['issue_key',
+                                           'issue_type',
+                                           'issue_points',
+                                           'new',
+                                           'new_day',
+                                           'in_progress',
+                                           'in_progress_day',
+                                           'complete',
+                                           'complete_day',
+                                           'lead_time',
+                                           'lead_time_days',
+                                           'cycle_time',
+                                           'cycle_time_days',
+                                           ])
+
+    for issue_id in issue_statuses:
+        new = issue_statuses[issue_id].get('first_created')
+        in_progress = issue_statuses[issue_id].get('first_in_progress')
+        complete = issue_statuses[issue_id].get('last_complete')
+
+        # Compute cycle time
+        lead_time = pandas.Timedelta(days=0)
+        cycle_time = pandas.Timedelta(days=0)
+
+        if complete:
+            lead_time = complete - new
+            cycle_time = lead_time
+
+            if in_progress:
+                cycle_time = complete - in_progress
+            else:
+                cycle_time = pandas.Timedelta(days=0)
+
+        # Adjust lead time and cycle time for weekend (non-working) days
+        if complete and exclude_weekends:
+            weekend_days = numpy.busday_count(new.date(), complete.date(), weekmask='Sat Sun')
+            lead_time -= pandas.Timedelta(days=weekend_days)
+
+            if in_progress:
+                weekend_days = numpy.busday_count(in_progress.date(), complete.date(), weekmask='Sat Sun')
+                cycle_time -= pandas.Timedelta(days=weekend_days)
+
+        # Ensure there's no negative lead times / cycle times
+        if lead_time / pandas.to_timedelta(1, unit='D') < 0:
+            lead_time = pandas.Timedelta(days=0)
+
+        if cycle_time / pandas.to_timedelta(1, unit='D') < 0:
+            cycle_time = pandas.Timedelta(days=0)
+
+        temp_dict = {'issue_key': [issue_keys.get(issue_id)],
+                     'issue_type': [issue_types.get(issue_id)],
+                     'issue_points': [issue_points.get(issue_id)],
+                     'new': [new],
+                     'new_day': [None],
+                     'in_progress': [in_progress],
+                     'in_progress_day': [None],
+                     'complete': [complete],
+                     'complete_day': [None],
+                     'lead_time': [lead_time],
+                     'lead_time_days': [None],
+                     'cycle_time': [cycle_time],
+                     'cycle_time_days': [None],
+                     }
+        temp_issue_data = pandas.DataFrame(temp_dict)
+        issue_data = pandas.concat([issue_data, temp_issue_data], ignore_index=True)
+
+    # Convert issue_points to float
+    issue_data['issue_points'] = issue_data['issue_points'].astype(float)
+
+    # Truncate days
+    issue_data.loc[issue_data['new'].isnull(), 'new'] = None
+    issue_data['new'] = pandas.to_datetime(issue_data['new'])
+    issue_data['new_day'] = issue_data['new'].values.astype('<M8[D]')
+
+    issue_data.loc[issue_data['in_progress'].isnull(), 'in progress'] = None
+    issue_data['in_progress'] = pandas.to_datetime(issue_data['in_progress'])
+    issue_data['in_progress_day'] = issue_data['in_progress'].values.astype('<M8[D]')
+
+    issue_data.loc[issue_data['complete'].isnull(), 'complete'] = None
+    issue_data['complete'] = pandas.to_datetime(issue_data['complete'])
+    issue_data['complete_day'] = issue_data['complete'].values.astype('<M8[D]')
+
+    # Add column for lead time represented as days
+    issue_data['lead_time_days'] = issue_data['lead_time'] / pandas.to_timedelta(1, unit='D')
+
+    # Round lead time less than 1 hour to zero
+    issue_data.loc[issue_data['lead_time_days'] < 1 / 24.0, 'lead_time_days'] = 0
+
+    # Add column for cycle time represented as days
+    issue_data['cycle_time_days'] = issue_data['cycle_time'] / pandas.to_timedelta(1, unit='D')
+
+    # Round cycle time less than 1 hour to zero
+    issue_data.loc[issue_data['cycle_time_days'] < 1 / 24.0, 'cycle_time_days'] = 0
+
+    # Add column for the previous statuses of this issue
+    issue_data['prev_issue_status'] = [issue_statuses[issue_ids[key]].get('prev_update', {}).get('status_to_name') for
+                                       key in issue_data['issue_key']]
+    issue_data['prev_issue_status_change_date'] = [
+        issue_statuses[issue_ids[key]].get('prev_update', {}).get('status_change_date') for key in
+        issue_data['issue_key']]
+    issue_data['prev_issue_status_category'] = [
+        issue_statuses[issue_ids[key]].get('prev_update', {}).get('status_to_category_name') for key in
+        issue_data['issue_key']]
+
+    # Add column for the last statuses of this issue
+    issue_data['last_issue_status'] = [issue_statuses[issue_ids[key]].get('last_update', {}).get('status_to_name') for
+                                       key in issue_data['issue_key']]
+    issue_data['last_issue_status_change_date'] = [
+        issue_statuses[issue_ids[key]].get('last_update', {}).get('status_change_date') for key in
+        issue_data['issue_key']]
+    issue_data['last_issue_status_category'] = [
+        issue_statuses[issue_ids[key]].get('last_update', {}).get('status_to_category_name') for key in
+        issue_data['issue_key']]
+
+    # Set the index
+    issue_data = issue_data.set_index('issue_key')
+
+    extra = (categories,
+             issues,
+             issue_ids,
+             issue_keys,
+             issue_types,
+             issue_points,
+             issue_statuses,
+             )
+
+    return issue_data, extra
+
+
 def run(args):
     data, dupes, filtered = read_data(args.file,
                                       exclude_types=args.exclude_type,
@@ -168,7 +363,7 @@ def run(args):
 
     output = args.output
 
-    # preprocess issue data
+    # Preprocess issue data
     i, _ = process_issue_data(data, since=since, until=until, exclude_weekends=exclude_weekends)
 
     # Calc summary data
