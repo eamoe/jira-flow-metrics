@@ -855,9 +855,26 @@ def cmd_detail_flow(output,
         if plot_trendline:
             plot_flow_trendlines(flow_data, status_columns=columns, ax=ax)
         else:
-            plot_flow(flow_data, status_columns=columns, ax=ax)  # TBD
+            plot_flow(flow_data, status_columns=columns, ax=ax)
 
         fig.savefig(plot)
+
+
+def cmd_detail_wip(output, issue_data, wip_type='', since='', until=''):
+
+    # current wip
+    w, ww = process_wip_data(issue_data, since=since, until=until)
+    a = process_wip_age_data(issue_data, since=since, until=until)
+
+    if wip_type == 'daily':
+        output_formatted_data(output, 'Work In Progress (Daily)', w)
+
+    if wip_type == 'weekly':
+        output_formatted_data(output, 'Work In Progress (Weekly)', ww)
+
+    if wip_type == 'aging':
+        wa = a[['First In Progress', 'Age', 'Stage', 'Age in Stage']]
+        output_formatted_data(output, f'Work In Progress Age (ending {until})', wa)
 
 
 def run(args):
@@ -908,7 +925,7 @@ def run(args):
                         columns=args.output_columns)
 
     if args.command == 'detail' and args.detail_type == 'wip':
-        cmd_detail_wip(output, i, since=since, until=until, wip_type=args.type)  # TBD
+        cmd_detail_wip(output, i, since=since, until=until, wip_type=args.type)
 
     if args.command == 'detail' and args.detail_type == 'throughput':
         cmd_detail_throughput(output, i, since=since, until=until, throughput_type=args.type)  # TBD
