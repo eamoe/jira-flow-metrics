@@ -614,6 +614,33 @@ def cmd_summary(output, issue_data, since='', until=''):
     output_formatted_data(output, f'Work In Progress Age (ending {until})', wip_age)
 
 
+def cmd_detail_flow(output,
+                    data,
+                    since='',
+                    until='',
+                    categorical=False,
+                    plot=None,
+                    plot_trendline=False,
+                    columns=None):
+
+    if categorical:
+        flow_data = process_flow_category_data(data, since=since, until=until)  # TBD
+        output_formatted_data(output, 'Cumulative Flow (Categorical)', flow_data)
+    else:
+        flow_data = process_flow_data(data, since=since, until=until)  # TBD
+        output_formatted_data(output, 'Cumulative Flow', flow_data)
+
+    if plot:
+        fig, ax = matplotlib.pyplot.subplots(1, 1, dpi=150, figsize=(15, 10))
+
+        if plot_trendline:
+            plot_flow_trendlines(flow_data, status_columns=columns, ax=ax)  # TBD
+        else:
+            plot_flow(flow_data, status_columns=columns, ax=ax)  # TBD
+
+        fig.savefig(plot)
+
+
 def run(args):
     data, dupes, filtered = read_data(args.file,
                                       exclude_types=args.exclude_type,
@@ -652,7 +679,7 @@ def run(args):
 
     # Calc detail data
     if args.command == 'detail' and args.detail_type == 'flow':
-        cmd_detail_flow(output,  # TBD
+        cmd_detail_flow(output,
                         data,
                         since=since,
                         until=until,
