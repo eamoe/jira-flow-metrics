@@ -889,6 +889,13 @@ def cmd_detail_throughput(output, issue_data, since='', until='', throughput_typ
         output_formatted_data(output, 'Throughput (Weekly)', tw)
 
 
+def cmd_detail_cycletime(output, issue_data, since='', until=''):
+
+    # Current cycle time
+    c = process_cycle_data(issue_data, since=since, until=until)
+    output_formatted_data(output, 'Cycle Time', c)
+
+
 def run(args):
     data, dupes, filtered = read_data(args.file,
                                       exclude_types=args.exclude_type,
@@ -940,10 +947,10 @@ def run(args):
         cmd_detail_wip(output, i, since=since, until=until, wip_type=args.type)
 
     if args.command == 'detail' and args.detail_type == 'throughput':
-        cmd_detail_throughput(output, i, since=since, until=until, throughput_type=args.type)  # TBD
+        cmd_detail_throughput(output, i, since=since, until=until, throughput_type=args.type)
 
     if args.command == 'detail' and args.detail_type == 'cycletime':
-        cmd_detail_cycletime(output, i, since=since, until=until)  # TBD
+        cmd_detail_cycletime(output, i, since=since, until=until)
 
     if args.command == 'detail' and args.detail_type == 'leadtime':
         cmd_detail_leadtime(output, i, since=since, until=until)  # TBD
