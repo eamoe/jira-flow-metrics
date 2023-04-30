@@ -1223,6 +1223,42 @@ def cmd_forecast_points_n(output, issue_data, since='', until='', n=10, simulati
                           forecast_summary)
 
 
+def forecast_montecarlo_how_many_points(throughput_data, days=10, simulations=10000, window=90):
+    # Forecast number of points to be completed in n days based on historical velocity
+    if throughput_data.empty:
+        logger.warning('Data for Montecarlo analysis is empty')
+        return
+
+    SIMULATION_DAYS = days
+    SIMULATIONS = simulations
+    LAST_DAYS = window
+
+    logger.info('Running Montecarlo analysis...')
+
+    if (throughput_data['Velocity']/throughput_data['Throughput']).max() == 1:
+        logger.warning('All velocity data is equal. Did you load data with points fields?')
+
+    dataset = throughput_data[['Velocity']].tail(LAST_DAYS).reset_index(drop=True)
+    count = len(dataset)
+    if count < window:
+        logger.warning(f'Montecarlo window ({window}) is larger than velocity dataset ({count}). '
+                       f'Try increasing your date filter to include more observations '
+                       f'or decreasing the forecast window size.')
+
+    samples = []
+    for i in range(SIMULATIONS):
+        if (i+1) % 1000 == 0:
+            logger.info(f'-> {i+1} simulations run')
+        samples.append(dataset.sample(n=SIMULATION_DAYS, replace=True).sum()['Velocity'])
+    logger.info('---')
+    samples = pandas.DataFrame(samples, columns=['Points'])
+    distribution_how = samples.groupby(['Points']).size().reset_index(name='Frequency')
+    distribution_how = distribution_how.sort_index(ascending=False)
+    distribution_how['Probability'] = 100 * distribution_how.Frequency.cumsum()/distribution_how.Frequency.sum()
+
+    return distribution_how, samples
+
+
 def cmd_forecast_points_days(output, issue_data, since='', until='', days=10, simulations=10000, window=90):
     # Process forecast points days command
     # pre-req
