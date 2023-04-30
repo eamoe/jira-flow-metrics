@@ -10,6 +10,7 @@ import seaborn
 import math
 import pingouin
 import lifelines
+import code
 
 logger = logging.getLogger(__file__)
 if __name__ != '__main__':
@@ -1275,6 +1276,13 @@ def cmd_forecast_points_days(output, issue_data, since='', until='', days=10, si
                           forecast_summary)
 
 
+def cmd_shell(output, data, issue_data, since='', until='', args=None):
+    logger.info('Creating interactive Python shell...')
+    logger.info('-> locals: %s' % ', '.join(locals().keys()))
+    logger.info('---')
+    code.interact(local=locals())
+
+
 def run(args):
     data, dupes, filtered = read_data(args.file,
                                       exclude_types=args.exclude_type,
@@ -1384,7 +1392,7 @@ def run(args):
 
     # Calc shell data
     if args.command == 'shell':
-        cmd_shell(output, data, i, since=since, until=until, args=args)  # TBD
+        cmd_shell(output, data, i, since=since, until=until, args=args)
 
 
 def main():
