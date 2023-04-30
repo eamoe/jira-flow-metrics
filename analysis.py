@@ -669,6 +669,62 @@ def process_flow_category_data(data, since='', until=''):
     return f
 
 
+def process_flow_data(data, since='', until=''):
+    if data.empty:
+        logger.warning('Data for flow analysis is empty')
+        return
+
+    if not since or not until:
+        raise AnalysisException('Flow analysis requires both `since` and `until` dates for processing')
+
+    dates = pandas.date_range(start=since, end=until, inclusive='left', freq='D')
+
+    flow_data = data.copy().reset_index()
+    flow_data = flow_data.sort_values(['status_change_date'])
+
+    statuses = set(flow_data['status_from_name']) | set(flow_data['status_to_name'])
+    if numpy.nan in statuses:
+        statuses.remove(numpy.nan)
+
+    f = pandas.DataFrame(columns=['Date'] + list(statuses))
+
+    last_counter = None
+
+    for date in dates:
+        tomorrow = date + pandas.Timedelta(days=1)
+        date_changes = flow_data
+        date_changes = date_changes[date_changes['status_change_date'] >= date]
+        date_changes = date_changes[date_changes['status_change_date'] < tomorrow]
+
+        if last_counter:
+            counter = last_counter
+        else:
+            counter = collections.Counter()
+        for item in date_changes['status_from_name']:
+            if counter[item] > 0:
+                counter[item] -= 1
+        for item in date_changes['status_to_name']:
+            counter[item] += 1
+
+        row = dict(counter)
+        row['Date'] = [date]
+        row_frame = pandas.DataFrame(row)
+        f = pandas.concat([f, row_frame], ignore_index=True)
+
+        last_counter = counter
+
+    f = f.fillna(0)
+    if f.empty:
+        return f
+
+    f['Date'] = f['Date'].dt.normalize()
+    f['Date'] = f['Date'].dt.date
+
+    f = f.set_index('Date')
+
+    return f
+
+
 def cmd_detail_flow(output,
                     data,
                     since='',
@@ -678,10 +734,10 @@ def cmd_detail_flow(output,
                     plot_trendline=False,
                     columns=None):
     if categorical:
-        flow_data = process_flow_category_data(data, since=since, until=until)  # TBD
+        flow_data = process_flow_category_data(data, since=since, until=until)
         output_formatted_data(output, 'Cumulative Flow (Categorical)', flow_data)
     else:
-        flow_data = process_flow_data(data, since=since, until=until)  # TBD
+        flow_data = process_flow_data(data, since=since, until=until)
         output_formatted_data(output, 'Cumulative Flow', flow_data)
 
     if plot:
