@@ -896,6 +896,13 @@ def cmd_detail_cycletime(output, issue_data, since='', until=''):
     output_formatted_data(output, 'Cycle Time', c)
 
 
+def cmd_detail_leadtime(output, issue_data, since='', until=''):
+
+    # Current lead time
+    c = process_lead_data(issue_data, since=since, until=until)
+    output_formatted_data(output, 'Lead Time', c)
+
+
 def run(args):
     data, dupes, filtered = read_data(args.file,
                                       exclude_types=args.exclude_type,
@@ -953,7 +960,7 @@ def run(args):
         cmd_detail_cycletime(output, i, since=since, until=until)
 
     if args.command == 'detail' and args.detail_type == 'leadtime':
-        cmd_detail_leadtime(output, i, since=since, until=until)  # TBD
+        cmd_detail_leadtime(output, i, since=since, until=until)
 
     # Calc correlation data
     if args.command == 'correlation':
