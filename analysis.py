@@ -1106,6 +1106,39 @@ def cmd_forecast_items_n(output, issue_data, since='', until='', n=10, simulatio
                           forecast_summary)
 
 
+def forecast_montecarlo_how_many_items(throughput_data, days=10, simulations=10000, window=90):
+    # Forecast number of items to be completed in n days based on historical throughput
+    if throughput_data.empty:
+        logger.warning('Data for Montecarlo analysis is empty')
+        return
+
+    SIMULATION_DAYS = days
+    SIMULATIONS = simulations
+    LAST_DAYS = window
+
+    logger.info('Running Montecarlo analysis...')
+
+    dataset = throughput_data[['Throughput']].tail(LAST_DAYS).reset_index(drop=True)
+    count = len(dataset)
+    if count < window:
+        logger.warning(f'Montecarlo window ({window}) is larger than throughput dataset ({count}). '
+                       f'Try increasing your date filter to include more observations '
+                       f'or decreasing the forecast window size.')
+
+    samples = []
+    for i in range(SIMULATIONS):
+        if (i+1) % 1000 == 0:
+            logger.info(f'-> {i+1} simulations run')
+        samples.append(dataset.sample(n=SIMULATION_DAYS, replace=True).sum()['Throughput'])
+    logger.info('---')
+    samples = pandas.DataFrame(samples, columns=['Items'])
+    distribution_how = samples.groupby(['Items']).size().reset_index(name='Frequency')
+    distribution_how = distribution_how.sort_index(ascending=False)
+    distribution_how['Probability'] = 100 * distribution_how.Frequency.cumsum()/distribution_how.Frequency.sum()
+
+    return distribution_how, samples
+
+
 def cmd_forecast_items_days(output, issue_data, since='', until='', days=10, simulations=10000, window=90):
     # Process forecast items days command
 
