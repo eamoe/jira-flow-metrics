@@ -9,6 +9,7 @@ import numpy
 import seaborn
 import math
 import pingouin
+import lifelines
 
 logger = logging.getLogger(__file__)
 if __name__ != '__main__':
@@ -983,6 +984,21 @@ def cmd_correlation(output, issue_data, since='', until='', plot=None):
         ax.set_xlim((1, issue_data['issue_points'].max() + 0.1))
 
         fig.savefig(plot)
+
+
+def analyze_survival_km(issue_data, since='', until=''):
+    # run a kaplan-meier survivability analysis on the issue data
+    survivability_data = issue_data.copy()
+    survivability_data = survivability_data[survivability_data['complete_day'] >= pandas.to_datetime(since)]
+    survivability_data = survivability_data[survivability_data['complete_day'] < pandas.to_datetime(until)]
+    survivability_data = survivability_data.sort_values(['complete_day'])
+
+    durations = survivability_data['cycle_time_days']
+    event_observed = [1 if c else 0 for c in survivability_data['cycle_time_days']]
+
+    km = lifelines.KaplanMeierFitter()
+
+    return km.fit(durations, event_observed, label='Kaplan Meier Estimate'), km
 
 
 def cmd_survival_km(output, issue_data, since='', until=''):
