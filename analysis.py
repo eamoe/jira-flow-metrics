@@ -8,6 +8,7 @@ import collections
 import numpy
 import seaborn
 import math
+import pingouin
 
 logger = logging.getLogger(__file__)
 if __name__ != '__main__':
@@ -896,6 +897,11 @@ def cmd_detail_leadtime(output, issue_data, since='', until=''):
     # Current lead time
     c = process_lead_data(issue_data, since=since, until=until)
     output_formatted_data(output, 'Lead Time', c)
+
+
+def process_correlation(x, y):
+    # Run a pearson correlation analysis between two sets (usually issue_points and cycle_time_days)
+    return pingouin.corr(x=x, y=y, method='pearson')
 
 
 def cmd_correlation(output, issue_data, since='', until='', plot=None):
