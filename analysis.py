@@ -488,6 +488,45 @@ def process_wip_data(issue_data, since='', until=''):
     return wip, wip_per_week
 
 
+def process_wip_age_data(issue_data, since='', until=''):
+
+    if issue_data.empty:
+        logger.warning('Data for wip age analysis is empty')
+        return
+
+    age_data = issue_data[issue_data['in_progress_day'].notnull()]
+
+    if since:
+        age_data = age_data[age_data['in_progress_day'] >= pandas.to_datetime(since)]
+    if until:
+        age_data = age_data[age_data['in_progress_day'] < pandas.to_datetime(until)]
+
+    # Compute ages for incomplete work
+    age_data = age_data[(age_data['complete_day'].isnull()) | (age_data['complete_day'] >= pandas.to_datetime(until))]
+    age_data = age_data[age_data['last_issue_status_category'] != 'To Do']
+    age_data = age_data.sort_values(['in_progress'])
+
+    today = pandas.to_datetime(until)
+
+    age_data['First In Progress'] = age_data['in_progress_day']
+    age_data['Stage'] = age_data['last_issue_status']
+    age_data['Age in Stage'] = (today - age_data['last_issue_status_change_date']) / pandas.to_timedelta(1, unit='D')
+    age_data['Age'] = (today - age_data['in_progress']) / pandas.to_timedelta(1, unit='D')
+    age_data['Average'] = age_data['Age'].mean()
+    age_data['Standard Deviation'] = age_data['Age'].std()
+    age_data['P50'] = age_data['Age'].quantile(0.5)
+    age_data['P75'] = age_data['Age'].quantile(0.75)
+    age_data['P85'] = age_data['Age'].quantile(0.85)
+    age_data['P95'] = age_data['Age'].quantile(0.95)
+    age_data['P99'] = age_data['Age'].quantile(0.999)
+
+    # Fix negative age in stages (because of an until that is set before completion date)
+    age_data.loc[age_data['Age in Stage'] < 0, 'Stage'] = 'Unknown'
+    age_data.loc[age_data['Age in Stage'] < 0, 'Age in Stage'] = age_data.loc[age_data['Age in Stage'] < 0, 'Age']
+
+    return age_data
+
+
 def cmd_summary(output, issue_data, since='', until=''):
     # Current lead time
     lt = process_lead_data(issue_data, since=since, until=until)
@@ -500,7 +539,7 @@ def cmd_summary(output, issue_data, since='', until=''):
 
     # Current wip
     w, ww = process_wip_data(issue_data, since=since, until=until)
-    a = process_wip_age_data(issue_data, since=since, until=until)  # TBD
+    a = process_wip_age_data(issue_data, since=since, until=until)
 
     lead_time = pandas.DataFrame.from_records([
         ('Average', lt['Average'].iat[-1]),
