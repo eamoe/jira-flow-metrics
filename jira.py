@@ -241,6 +241,7 @@ def fetch(client,
           since,
           custom_fields=None,
           updates_only=False):
+
     logging.info(f'Fetching project {project_key} since {since}...')
 
     # Get high level information fresh every time
@@ -248,6 +249,7 @@ def fetch(client,
         categories = fetch_status_categories_all(client)
         statuses = fetch_statuses_all(client)
         project = fetch_project(client, project_key)
+        # Fetch issues' statuses of the project
         project_statuses = fetch_statuses_by_project(client, project_key)
 
     # Compute lookup tables
@@ -345,24 +347,23 @@ def generate_output_csv(client,
     import dateutil.parser
     import pytz
 
-    field_names = [
-        'project_id',
-        'project_key',
-        'issue_id',
-        'issue_key',
-        'issue_type_id',
-        'issue_type_name',
-        'issue_title',
-        'issue_created_date',
-        'changelog_id',
-        'status_from_id',
-        'status_from_name',
-        'status_to_id',
-        'status_to_name',
-        'status_from_category_name',
-        'status_to_category_name',
-        'status_change_date',
-    ]
+    field_names = ['project_id',
+                   'project_key',
+                   'issue_id',
+                   'issue_key',
+                   'issue_type_id',
+                   'issue_type_name',
+                   'issue_title',
+                   'issue_created_date',
+                   'changelog_id',
+                   'status_from_id',
+                   'status_from_name',
+                   'status_to_id',
+                   'status_to_name',
+                   'status_from_category_name',
+                   'status_to_category_name',
+                   'status_change_date',
+                   ]
 
     custom_field_map = {}
     if custom_fields:
@@ -392,9 +393,9 @@ def generate_output_csv(client,
                 record[key] = value.isoformat()
 
         if anonymize:
-            record['issue_key'] = record['issue_key'].replace(record['project_key'], 'MSD')
-            record['project_key'] = 'MSD'
-            record['issue_title'] = 'Masked title'
+            record['issue_key'] = record['issue_key'].replace(record['project_key'], 'ANON')
+            record['project_key'] = 'ANON'
+            record['issue_title'] = 'Anonymized Title'
 
         if custom_field_map:
             for key, value in custom_field_map.items():
