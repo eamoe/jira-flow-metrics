@@ -413,6 +413,7 @@ def main():
     domain = config('JIRA_DOMAIN')
     email = config('JIRA_EMAIL')
     apikey = config('JIRA_APIKEY')
+    output_file = config('JIRA_OUTPUT_FILE')
 
     parser = argparse.ArgumentParser(description='Extract changelog of Jira project issue')
 
@@ -440,7 +441,7 @@ def main():
                         help='Jira user api key for authentication. Can also be provided via JIRA_APIKEY environment '
                              'variable.')
 
-    parser.add_argument('-o', '--output', default='jira_output_data.csv', help='File to store the csv output.')
+    parser.add_argument('-o', '--output', default=output_file, help='File to store the csv output.')
 
     parser.add_argument('-q', '--quiet', action='store_true', help='Be quiet and only output warnings to console.')
 
