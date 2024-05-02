@@ -77,29 +77,27 @@ def fetch_statuses_by_project(client, project_key):
     return json.loads(response.text)
 
 
-def fetch_issues(
-        client,
-        project_key,
-        since,
-        start=0,
-        limit=1000,
-        custom_fields=None,
-        updates_only=False,
-        use_get=False):
+def fetch_issues(client,
+                 project_key,
+                 since,
+                 start=0,
+                 limit=1000,
+                 custom_fields=None,
+                 updates_only=False,
+                 use_get=False):
 
     jql = f'project = {project_key} AND created >= "{since}" ORDER BY created ASC'
 
     if updates_only:
         jql = f'project = {project_key} AND updated >= "{since}" ORDER BY created ASC'
 
-    fields = [
-        'parent',
-        'summary',
-        'status',
-        'issuetype',
-        'created',
-        'updated'
-    ]
+    fields = ['parent',
+              'summary',
+              'status',
+              'issuetype',
+              'created',
+              'updated'
+              ]
 
     if custom_fields:
         fields = fields + custom_fields
@@ -114,21 +112,19 @@ def fetch_issues(
     }
 
     if use_get:
-        response = requests.request(
-           'GET',
-           client.url('/rest/api/3/search'),
-           params=payload,
-           headers=headers(),
-           auth=client.auth()
-        )
+        response = requests.request('GET',
+                                    client.url('/rest/api/3/search'),
+                                    params=payload,
+                                    headers=headers(),
+                                    auth=client.auth()
+                                    )
     else:
-        response = requests.request(
-           'POST',
-           client.url('/rest/api/3/search'),
-           data=json.dumps(payload),
-           headers=headers(),
-           auth=client.auth()
-        )
+        response = requests.request('POST',
+                                    client.url('/rest/api/3/search'),
+                                    data=json.dumps(payload),
+                                    headers=headers(),
+                                    auth=client.auth()
+                                    )
 
     if response.status_code != 200:
         logging.warning(f'Could not fetch issues since {since}')
@@ -137,24 +133,22 @@ def fetch_issues(
     return json.loads(response.text)
 
 
-def yield_issues_all(
-        client,
-        project_key,
-        since,
-        batch=1000,
-        custom_fields=None,
-        updates_only=False,
-        use_get=False):
+def yield_issues_all(client,
+                     project_key,
+                     since,
+                     batch=1000,
+                     custom_fields=None,
+                     updates_only=False,
+                     use_get=False):
 
-    issues_count = fetch_issues(
-        client,
-        project_key,
-        since=since,
-        start=0,
-        limit=0,
-        custom_fields=custom_fields,
-        updates_only=updates_only,
-        use_get=use_get)
+    issues_count = fetch_issues(client,
+                                project_key,
+                                since=since,
+                                start=0,
+                                limit=0,
+                                custom_fields=custom_fields,
+                                updates_only=updates_only,
+                                use_get=use_get)
 
     total = issues_count.get('total', 0)
     fetched = 0
@@ -262,13 +256,12 @@ def fetch(client,
         status_categories_by_status_id[int(status.get('id'))] = \
             categories_by_category_id[status.get('statusCategory', {}).get('id')]
 
-    issues = yield_issues_all(
-        client,
-        project_key,
-        since=since,
-        custom_fields=custom_fields,
-        updates_only=updates_only,
-        use_get=True)
+    issues = yield_issues_all(client=client,
+                              project_key=project_key,
+                              since=since,
+                              custom_fields=custom_fields,
+                              updates_only=updates_only,
+                              use_get=True)
 
     for issue in issues:
         logging.info(f"Fetching issue {issue.get('key')}...")
@@ -378,8 +371,8 @@ def generate_output_csv(client,
     if write_header:
         writer.writeheader()
 
-    records = fetch(client,
-                    project_key,
+    records = fetch(client=client,
+                    project_key=project_key,
                     since=since,
                     custom_fields=custom_fields,
                     updates_only=updates_only)
