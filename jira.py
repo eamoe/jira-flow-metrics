@@ -473,16 +473,15 @@ def main():
 
     with open(args.output, mode, newline='') as csv_file:
         logging.info(f'{args.output} Opened for writing (mode: {mode})...')
-        generate_output_csv(
-            client,
-            csv_file,
-            args.project,
-            since=args.since,
-            custom_fields=custom_fields,
-            custom_field_names=custom_field_names,
-            updates_only=args.updates_only,
-            write_header=not args.append,
-            anonymize=args.anonymize)
+        generate_output_csv(client=client,
+                            csv_file=csv_file,
+                            project_key=args.project,
+                            since=args.since,
+                            custom_fields=custom_fields,
+                            custom_field_names=custom_field_names,
+                            updates_only=args.updates_only,
+                            write_header=not args.append,
+                            anonymize=args.anonymize)
 
 
 if __name__ == '__main__':
