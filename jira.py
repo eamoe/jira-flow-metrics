@@ -7,7 +7,10 @@ import requests_cache
 import requests
 import json
 
-requests_cache.install_cache('jira_cache', backend='sqlite', expire_after=24 * 60 * 60)
+
+requests_cache.install_cache(cache_name='jira_cache',
+                             backend='sqlite',
+                             expire_after=24 * 60 * 60)
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +37,9 @@ class Client:
 
 
 def fetch_status_categories_all(client):
-    response = requests.get(
-        client.url('/rest/api/3/statuscategory'),
-        auth=client.auth(),
-        headers=headers())
+    response = requests.get(url=client.url('/rest/api/3/statuscategory'),
+                            auth=client.auth(),
+                            headers=headers())
     if response.status_code != 200:
         logging.warning('Could not fetch status categories')
         return {}
@@ -45,10 +47,9 @@ def fetch_status_categories_all(client):
 
 
 def fetch_statuses_all(client):
-    response = requests.get(
-        client.url('/rest/api/3/status'),
-        auth=client.auth(),
-        headers=headers())
+    response = requests.get(url=client.url('/rest/api/3/status'),
+                            auth=client.auth(),
+                            headers=headers())
     if response.status_code != 200:
         logging.warning('Could not fetch statuses')
         return {}
@@ -56,10 +57,9 @@ def fetch_statuses_all(client):
 
 
 def fetch_project(client, project_key):
-    response = requests.get(
-        client.url(f'/rest/api/3/project/{project_key}'),
-        auth=client.auth(),
-        headers=headers())
+    response = requests.get(url=client.url(f'/rest/api/3/project/{project_key}'),
+                            auth=client.auth(),
+                            headers=headers())
     if response.status_code != 200:
         logging.warning(f'Could not fetch project {project_key}')
         return {}
@@ -67,10 +67,9 @@ def fetch_project(client, project_key):
 
 
 def fetch_statuses_by_project(client, project_key):
-    response = requests.get(
-        client.url(f'/rest/api/3/project/{project_key}/statuses'),
-        auth=client.auth(),
-        headers=headers())
+    response = requests.get(url=client.url(f'/rest/api/3/project/{project_key}/statuses'),
+                            auth=client.auth(),
+                            headers=headers())
     if response.status_code != 200:
         logging.warning(f'Could not fetch project {project_key} statuses')
         return {}
@@ -112,15 +111,15 @@ def fetch_issues(client,
     }
 
     if use_get:
-        response = requests.request('GET',
-                                    client.url('/rest/api/3/search'),
+        response = requests.request(method='GET',
+                                    url=client.url('/rest/api/3/search'),
                                     params=payload,
                                     headers=headers(),
                                     auth=client.auth()
                                     )
     else:
-        response = requests.request('POST',
-                                    client.url('/rest/api/3/search'),
+        response = requests.request(method='POST',
+                                    url=client.url('/rest/api/3/search'),
                                     data=json.dumps(payload),
                                     headers=headers(),
                                     auth=client.auth()
@@ -141,8 +140,8 @@ def yield_issues_all(client,
                      updates_only=False,
                      use_get=False):
 
-    issues_count = fetch_issues(client,
-                                project_key,
+    issues_count = fetch_issues(client=client,
+                                project_key=project_key,
                                 since=since,
                                 start=0,
                                 limit=0,
@@ -153,15 +152,14 @@ def yield_issues_all(client,
     total = issues_count.get('total', 0)
     fetched = 0
     while fetched < total:
-        j = fetch_issues(
-            client,
-            project_key,
-            since=since,
-            start=fetched,
-            limit=batch,
-            custom_fields=custom_fields,
-            updates_only=updates_only,
-            use_get=use_get)
+        j = fetch_issues(client=client,
+                         project_key=project_key,
+                         since=since,
+                         start=fetched,
+                         limit=batch,
+                         custom_fields=custom_fields,
+                         updates_only=updates_only,
+                         use_get=use_get)
 
         if not j:
             break
@@ -173,23 +171,21 @@ def yield_issues_all(client,
             fetched += 1
 
 
-def fetch_changelog(
-        client,
-        issue_id,
-        start,
-        limit):
+def fetch_changelog(client,
+                    issue_id,
+                    start,
+                    limit):
 
     params = {
         'startAt':      start,
         'maxResults':   limit
     }
 
-    response = requests.request(
-        'GET',
-        client.url(f'/rest/api/3/issue/{issue_id}/changelog'),
-        params=params,
-        auth=client.auth(),
-        headers=headers())
+    response = requests.request(method='GET',
+                                url=client.url(f'/rest/api/3/issue/{issue_id}/changelog'),
+                                params=params,
+                                auth=client.auth(),
+                                headers=headers())
 
     if response.status_code != 200:
         logging.warning(f'Could not fetch changelog for issue {issue_id}')
@@ -197,17 +193,15 @@ def fetch_changelog(
     return json.loads(response.text)
 
 
-def yield_changelog_all(
-        client,
-        issue_id,
-        batch=1000):
+def yield_changelog_all(client,
+                        issue_id,
+                        batch=1000):
 
     starting_limit = 10
-    changelog_count = fetch_changelog(
-        client,
-        issue_id,
-        start=0,
-        limit=starting_limit)
+    changelog_count = fetch_changelog(client,
+                                      issue_id,
+                                      start=0,
+                                      limit=starting_limit)
     total = changelog_count.get('total', 0)
     if total <= starting_limit:
         for result in changelog_count.get('values', []):
@@ -215,11 +209,10 @@ def yield_changelog_all(
     else:
         fetched = 0
         while fetched < total:
-            j = fetch_changelog(
-                client,
-                issue_id,
-                start=fetched,
-                limit=batch)
+            j = fetch_changelog(client,
+                                issue_id,
+                                start=fetched,
+                                limit=batch)
             if not j:
                 break
             k = j.get('values', [])

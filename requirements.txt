@@ -29,6 +29,7 @@ defusedxml==0.7.1
 exceptiongroup==1.1.1
 executing==1.2.0
 fastjsonschema==2.16.3
+flake8==7.0.0
 fonttools==4.39.3
 formulaic==0.6.0
 fqdn==1.5.1
@@ -64,6 +65,7 @@ littleutils==0.2.2
 MarkupSafe==2.1.2
 matplotlib==3.7.1
 matplotlib-inline==0.1.6
+mccabe==0.7.0
 mistune==2.0.5
 nbclassic==0.5.6
 nbclient==0.7.4
@@ -90,7 +92,9 @@ prompt-toolkit==3.0.38
 psutil==5.9.5
 ptyprocess==0.7.0
 pure-eval==0.2.2
+pycodestyle==2.11.1
 pycparser==2.21
+pyflakes==3.2.0
 Pygments==2.15.1
 pyparsing==3.0.9
 pyrsistent==0.19.3
