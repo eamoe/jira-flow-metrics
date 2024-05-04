@@ -15,15 +15,16 @@ data, dupes, filtered = analysis.read_data(DATA_FILE, since=FILTER_ISSUES_SINCE,
 
 issue_data, (categories, *extra) = analysis.process_issue_data(data, exclude_weekends=EXCLUDE_WEEKENDS)
 
-
 # Cycle Time
-def create_cycle_time_figure(df):
-    cycle_data = analysis.process_cycle_data(df)
-    cycle_data = cycle_data.reset_index()
-    melted_data = pd.melt(cycle_data[['Work Item',
-                                      'Cycle Time',
-                                      'Moving Average (10 items)',
-                                      'Average']],
+cycle_data = analysis.process_cycle_data(issue_data)
+cycle_data = cycle_data.reset_index()
+
+
+def create_cycle_time_run_chart(df):
+    melted_data = pd.melt(df[['Work Item',
+                              'Cycle Time',
+                              'Moving Average (10 items)',
+                              'Average']],
                           ['Work Item'])
     figure = px.line(melted_data,
                      x="Work Item",
@@ -31,14 +32,14 @@ def create_cycle_time_figure(df):
                      color="variable",
                      title=f"Cycle Time Since {FILTER_ISSUES_SINCE}",
                      labels={"Work Item": "Timeline", "value": "Days"})
-    tick_values = list(range(0, len(cycle_data['Work Item']), len(cycle_data['Work Item'])//10))
-    tick_texts = pd.to_datetime(cycle_data['Complete Date'].values[tick_values]).strftime('%d %b')
+    tick_values = list(range(0, len(df['Work Item']), len(df['Work Item'])//10))
+    tick_texts = pd.to_datetime(df['Complete Date'].values[tick_values]).strftime('%d %b')
     figure.update_layout(xaxis=dict(tickmode='array',
                                     tickvals=tick_values,
                                     ticktext=tick_texts))
-    figure.add_annotation(x=cycle_data['Work Item'].max(),
-                          y=cycle_data['Average'].max(),
-                          text="Average = {:.2f} days".format(cycle_data['Average'].max()),
+    figure.add_annotation(x=df['Work Item'].max(),
+                          y=df['Average'].max(),
+                          text="Average = {:.2f} days".format(df['Average'].max()),
                           showarrow=False,
                           yshift=10)
     figure.update_layout(legend=dict(yanchor="top",
@@ -53,7 +54,7 @@ app = Dash(__name__)
 app.layout = html.Div([
     html.H1(children="Flow Metrics"),
     html.H2(children="Cycle Time Run Chart"),
-    dcc.Graph(figure=create_cycle_time_figure(issue_data)),
+    dcc.Graph(figure=create_cycle_time_run_chart(cycle_data)),
     html.H2(children="Cycle Time Histogram"),
 ])
 
