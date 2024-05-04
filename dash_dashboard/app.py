@@ -49,6 +49,17 @@ def create_cycle_time_run_chart(df):
     return figure
 
 
+def create_cycle_time_histogram(df):
+    figure = px.histogram(df['Cycle Time'],
+                          nbins=7,
+                          title=f"Cycle Time Histogram Since {FILTER_ISSUES_SINCE}")
+    figure.update_layout(xaxis_title="Days",
+                         yaxis_title="Frequency")
+    figure.update_layout(showlegend=False,
+                         bargap=0.1)
+    return figure
+
+
 app = Dash(__name__)
 
 app.layout = html.Div([
@@ -56,6 +67,7 @@ app.layout = html.Div([
     html.H2(children="Cycle Time Run Chart"),
     dcc.Graph(figure=create_cycle_time_run_chart(cycle_data)),
     html.H2(children="Cycle Time Histogram"),
+    dcc.Graph(figure=create_cycle_time_histogram(cycle_data)),
 ])
 
 if __name__ == '__main__':
