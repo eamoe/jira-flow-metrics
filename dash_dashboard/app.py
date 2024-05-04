@@ -15,9 +15,15 @@ data, dupes, filtered = analysis.read_data(DATA_FILE, since=FILTER_ISSUES_SINCE,
 
 issue_data, (categories, *extra) = analysis.process_issue_data(data, exclude_weekends=EXCLUDE_WEEKENDS)
 
-# Cycle Time
+# Cycle Time Data
 cycle_data = analysis.process_cycle_data(issue_data)
 cycle_data = cycle_data.reset_index()
+
+# Throughput Data
+throughput, throughput_per_week = analysis.process_throughput_data(issue_data,
+                                                                   since=FILTER_ISSUES_SINCE,
+                                                                   until=FILTER_ISSUES_UNTIL)
+throughput_per_week = throughput_per_week.reset_index()
 
 
 def create_cycle_time_run_chart(df):
@@ -74,7 +80,33 @@ def create_cycle_time_scatterplot(df):
                               text="{:.2f}% {:.2f}".format(v*100, cycle_data['Cycle Time'].quantile(v)),
                               showarrow=False,
                               yshift=10)
-        figure.update_xaxes(tickformat="%e %b, %Y")
+    figure.update_xaxes(tickformat="%e %b, %Y")
+    return figure
+
+
+def create_throughput_per_week_run_chart(df):
+    import plotly.graph_objects as go
+    figure = px.area(df,
+                     x=df['Date'],
+                     y=df["Throughput"],
+                     title=f"Throughput per Week Since {FILTER_ISSUES_SINCE}",
+                     labels={"Date": "Week"})
+    figure.add_trace(go.Scatter(x=df['Date'],
+                                y=df["Moving Average (4 weeks)"],
+                                name="Moving Average (4w)"))
+    figure.add_trace(go.Scatter(x=df['Date'],
+                                y=df["Average"],
+                                name="Average"))
+    figure.add_annotation(x=df['Date'].min(),
+                          y=df['Average'].max(),
+                          text="Average = {:.2f} days".format(df['Average'].max()),
+                          showarrow=False,
+                          yshift=10)
+    figure.update_layout(legend=dict(yanchor="top",
+                                     y=0.99,
+                                     xanchor="left",
+                                     x=0.01))
+    figure.update_layout(hovermode="x unified")
     return figure
 
 
@@ -88,6 +120,8 @@ app.layout = html.Div([
     dcc.Graph(figure=create_cycle_time_histogram(cycle_data)),
     html.H2(children="Cycle Time Scatterplot"),
     dcc.Graph(figure=create_cycle_time_scatterplot(cycle_data)),
+    html.H2(children="Throughput per Week"),
+    dcc.Graph(figure=create_throughput_per_week_run_chart(throughput_per_week)),
 ])
 
 if __name__ == '__main__':
