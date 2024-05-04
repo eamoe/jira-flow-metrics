@@ -60,6 +60,24 @@ def create_cycle_time_histogram(df):
     return figure
 
 
+def create_cycle_time_scatterplot(df):
+    figure = px.scatter(df,
+                        x=cycle_data['Complete Date'],
+                        y=cycle_data['Cycle Time'],
+                        title="Cycle Time Scatterplot")
+    for v in (0.25, 0.5, 0.75, 0.85, 0.95):
+        figure.add_hline(y=cycle_data['Cycle Time'].quantile(v),
+                         line_dash="dash",
+                         line_width=1)
+        figure.add_annotation(x=cycle_data['Complete Date'].max(),
+                              y=cycle_data['Cycle Time'].quantile(v),
+                              text="{:.2f}% {:.2f}".format(v*100, cycle_data['Cycle Time'].quantile(v)),
+                              showarrow=False,
+                              yshift=10)
+        figure.update_xaxes(tickformat="%e %b, %Y")
+    return figure
+
+
 app = Dash(__name__)
 
 app.layout = html.Div([
@@ -68,6 +86,8 @@ app.layout = html.Div([
     dcc.Graph(figure=create_cycle_time_run_chart(cycle_data)),
     html.H2(children="Cycle Time Histogram"),
     dcc.Graph(figure=create_cycle_time_histogram(cycle_data)),
+    html.H2(children="Cycle Time Scatterplot"),
+    dcc.Graph(figure=create_cycle_time_scatterplot(cycle_data)),
 ])
 
 if __name__ == '__main__':
