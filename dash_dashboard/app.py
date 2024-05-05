@@ -121,6 +121,31 @@ def create_throughput_histogram(df):
     return figure
 
 
+def create_cfd_by_categories(df):
+    import plotly.graph_objects as go
+    status_categories = {'To Do': 'lightgray',
+                         'In Progress': 'lightskyblue',
+                         'Done': 'lightseagreen'}
+    f = analysis.process_flow_category_data(df, since=FILTER_ISSUES_SINCE, until=FILTER_ISSUES_UNTIL)
+    figure = go.Figure()
+    for status_category in reversed(status_categories):
+        figure.add_trace(go.Scatter(x=f.index.values,
+                                    y=f[status_category],
+                                    stackgroup="stack_group",
+                                    name=status_category,
+                                    line=dict(color=status_categories[status_category]),
+                                    fillcolor=status_categories[status_category]))
+    figure.update_layout(legend=dict(yanchor="top",
+                                     y=0.99,
+                                     xanchor="left",
+                                     x=0.01))
+    figure.update_layout(hovermode="x unified")
+    figure.update_layout(xaxis_title="Timeline",
+                         yaxis_title="Items")
+    figure.update_layout(title=f"Cumulative Flow Diagram {FILTER_ISSUES_SINCE}")
+    return figure
+
+
 app = Dash(__name__)
 
 app.layout = html.Div([
@@ -135,6 +160,8 @@ app.layout = html.Div([
     dcc.Graph(figure=create_throughput_per_week_run_chart(throughput_per_week)),
     html.H2(children="Throughput Histogram"),
     dcc.Graph(figure=create_throughput_histogram(throughput_per_week)),
+    html.H2(children="Cumulative Flow Diagram"),
+    dcc.Graph(figure=create_cfd_by_categories(data)),
 ])
 
 if __name__ == '__main__':
