@@ -3,7 +3,6 @@ import pandas as pd
 import analysis
 import plotly.express as px
 
-
 OMIT_ISSUE_TYPES = ('Epic')
 FILTER_ISSUES_UNTIL = '2023-06-02'
 FILTER_ISSUES_SINCE = '2023-04-15'
@@ -38,7 +37,7 @@ def create_cycle_time_run_chart(df):
                      color="variable",
                      title=f"Cycle Time Since {FILTER_ISSUES_SINCE}",
                      labels={"Work Item": "Timeline", "value": "Days"})
-    tick_values = list(range(0, len(df['Work Item']), len(df['Work Item'])//10))
+    tick_values = list(range(0, len(df['Work Item']), len(df['Work Item']) // 10))
     tick_texts = pd.to_datetime(df['Complete Date'].values[tick_values]).strftime('%d %b')
     figure.update_layout(xaxis=dict(tickmode='array',
                                     tickvals=tick_values,
@@ -77,7 +76,7 @@ def create_cycle_time_scatterplot(df):
                          line_width=1)
         figure.add_annotation(x=cycle_data['Complete Date'].max(),
                               y=cycle_data['Cycle Time'].quantile(v),
-                              text="{:.2f}% {:.2f}".format(v*100, cycle_data['Cycle Time'].quantile(v)),
+                              text="{:.2f}% {:.2f}".format(v * 100, cycle_data['Cycle Time'].quantile(v)),
                               showarrow=False,
                               yshift=10)
     figure.update_xaxes(tickformat="%e %b, %Y")
@@ -142,7 +141,7 @@ def create_cfd_by_categories(df):
     figure.update_layout(hovermode="x unified")
     figure.update_layout(xaxis_title="Timeline",
                          yaxis_title="Items")
-    figure.update_layout(title=f"Cumulative Flow Diagram {FILTER_ISSUES_SINCE}")
+    figure.update_layout(title=f"Cumulative Flow Diagram by Status Category since {FILTER_ISSUES_SINCE}")
     return figure
 
 
@@ -162,7 +161,7 @@ def create_cfd_by_status(df):
     figure.update_layout(hovermode="x unified")
     figure.update_layout(xaxis_title="Timeline",
                          yaxis_title="Items")
-    figure.update_layout(title=f"Cumulative Flow Diagram by Status {FILTER_ISSUES_SINCE}")
+    figure.update_layout(title=f"Cumulative Flow Diagram by Status since {FILTER_ISSUES_SINCE}")
     return figure
 
 
@@ -180,7 +179,7 @@ app.layout = html.Div([
     dcc.Graph(figure=create_throughput_per_week_run_chart(throughput_per_week)),
     html.H2(children="Throughput Histogram"),
     dcc.Graph(figure=create_throughput_histogram(throughput_per_week)),
-    html.H2(children="Cumulative Flow Diagram"),
+    html.H2(children="Cumulative Flow Diagram by Status Category"),
     dcc.Graph(figure=create_cfd_by_categories(data)),
     html.H2(children="Cumulative Flow Diagram by Status"),
     dcc.Graph(figure=create_cfd_by_status(data)),
