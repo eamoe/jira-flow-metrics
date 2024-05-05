@@ -110,6 +110,17 @@ def create_throughput_per_week_run_chart(df):
     return figure
 
 
+def create_throughput_histogram(df):
+    figure = px.histogram(df['Throughput'],
+                          nbins=7,
+                          title=f"Throughput Histogram Since {FILTER_ISSUES_SINCE}")
+    figure.update_layout(xaxis_title="Throughput (per week)",
+                         yaxis_title="Frequency")
+    figure.update_layout(showlegend=False,
+                         bargap=0.1)
+    return figure
+
+
 app = Dash(__name__)
 
 app.layout = html.Div([
@@ -122,6 +133,8 @@ app.layout = html.Div([
     dcc.Graph(figure=create_cycle_time_scatterplot(cycle_data)),
     html.H2(children="Throughput per Week"),
     dcc.Graph(figure=create_throughput_per_week_run_chart(throughput_per_week)),
+    html.H2(children="Throughput Histogram"),
+    dcc.Graph(figure=create_throughput_histogram(throughput_per_week)),
 ])
 
 if __name__ == '__main__':
