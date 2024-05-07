@@ -24,6 +24,10 @@ throughput, throughput_per_week = analysis.process_throughput_data(issue_data,
                                                                    until=FILTER_ISSUES_UNTIL)
 throughput_per_week = throughput_per_week.reset_index()
 
+# Work in Progress
+wip, _ = analysis.process_wip_data(issue_data, since=FILTER_ISSUES_SINCE, until=FILTER_ISSUES_UNTIL)
+wip = wip.reset_index()
+
 
 def create_cycle_time_run_chart(df):
     melted_data = pd.melt(df[['Work Item',
@@ -165,6 +169,22 @@ def create_cfd_by_status(df):
     return figure
 
 
+def create_wip_run_chart(df):
+    wip_melted = pd.melt(df, ['Date'])
+    wip_melted['value'] = wip_melted['value'].astype(float)
+    figure = px.line(wip_melted,
+                     x="Date",
+                     y="value",
+                     color="variable",
+                     title=f"Work in Progress per Day Since {df['Date'].min().strftime('%Y-%m-%d')}",
+                     labels={"Date": "Timeline", "value": "Items"})
+    figure.update_layout(legend=dict(yanchor="top",
+                                     y=0.99,
+                                     xanchor="left",
+                                     x=0.01))
+    return figure
+
+
 app = Dash(__name__)
 
 app.layout = html.Div([
@@ -183,6 +203,8 @@ app.layout = html.Div([
     dcc.Graph(figure=create_cfd_by_categories(data)),
     html.H2(children="Cumulative Flow Diagram by Status"),
     dcc.Graph(figure=create_cfd_by_status(data)),
+    html.H2(children="Work In Progress"),
+    dcc.Graph(figure=create_wip_run_chart(wip)),
 ])
 
 if __name__ == '__main__':
