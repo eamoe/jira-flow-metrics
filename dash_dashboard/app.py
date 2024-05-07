@@ -28,6 +28,10 @@ throughput_per_week = throughput_per_week.reset_index()
 wip, _ = analysis.process_wip_data(issue_data, since=FILTER_ISSUES_SINCE, until=FILTER_ISSUES_UNTIL)
 wip = wip.reset_index()
 
+age_data = analysis.process_wip_age_data(issue_data,
+                                         since=FILTER_ISSUES_SINCE,
+                                         until=FILTER_ISSUES_UNTIL)
+
 
 def create_cycle_time_run_chart(df):
     melted_data = pd.melt(df[['Work Item',
@@ -185,6 +189,26 @@ def create_wip_run_chart(df):
     return figure
 
 
+def create_wip_age_chart(df):
+    figure = px.scatter(df,
+                        x='last_issue_status',
+                        y='Age in Stage',
+                        title="Current Work in Progress Aging",
+                        labels={"last_issue_status": "Status", "Age in Stage": "Aging"})
+    quantiles = {'P50': 0.5, 'P75': 0.75, 'P95': 0.95}
+    for quantile in quantiles:
+        figure.add_hline(y=df[quantile].iloc[0],
+                         line_dash="dash",
+                         line_width=1)
+        figure.add_annotation(x=df['last_issue_status'].min(),
+                              y=df[quantile].iloc[0],
+                              text="{:.2f} days ({:.0f}%)".format(df[quantile].iloc[0], quantiles[quantile] * 100),
+                              showarrow=False,
+                              yshift=10)
+    figure.update_layout(hovermode="x unified")
+    return figure
+
+
 app = Dash(__name__)
 
 app.layout = html.Div([
@@ -205,6 +229,8 @@ app.layout = html.Div([
     dcc.Graph(figure=create_cfd_by_status(data)),
     html.H2(children="Work In Progress"),
     dcc.Graph(figure=create_wip_run_chart(wip)),
+    html.H2(children="Current WIP Aging"),
+    dcc.Graph(figure=create_wip_age_chart(age_data)),
 ])
 
 if __name__ == '__main__':
