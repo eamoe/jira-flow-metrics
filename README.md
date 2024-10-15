@@ -2,7 +2,8 @@
 
 ## Jira Module
 
-Extracts changelog of Jira project issues
+This module allows to interact with Jira APIs to fetch issue data, changelogs, and project details,
+and export the data to a CSV file.
 
 Usage:
 ```commandline
