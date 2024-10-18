@@ -6,24 +6,17 @@ import csv
 import requests_cache
 import requests
 import json
+import datetime
+import dateutil.parser
+import pytz
 
 
-requests_cache.install_cache(cache_name='jira_cache',
-                             backend='sqlite',
-                             expire_after=24 * 60 * 60)
+requests_cache.install_cache(cache_name='jira_cache', backend='sqlite', expire_after=24 * 60 * 60)
 
 logger = logging.getLogger(__name__)
 
 
-def headers():
-    return {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-    }
-
-
 class Client:
-
     def __init__(self, domain='', email='', apikey=''):
         self.domain = domain
         self.email = email
@@ -35,365 +28,289 @@ class Client:
     def auth(self):
         return HTTPBasicAuth(self.email, self.apikey)
 
+    def request(self, method, path, params=None, data=None):
+        url = self.url(path)
+        headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+        if method == 'GET':
+            response = requests.get(url, params=params, headers=headers, auth=self.auth())
+        else:
+            response = requests.post(url, json=data, headers=headers, auth=self.auth())
 
-def fetch_status_categories_all(client):
-    response = requests.get(url=client.url('/rest/api/3/statuscategory'),
-                            auth=client.auth(),
-                            headers=headers())
-    if response.status_code != 200:
-        logging.warning('Could not fetch status categories')
-        return {}
-    return json.loads(response.text)
+        if response.status_code != 200:
+            logging.warning(f'Error fetching data from {url}: {response.status_code}')
+            return {}
+        return json.loads(response.text)
 
+    def fetch_status_categories_all(self):
+        return self.request(method='GET', path='/rest/api/3/statuscategory')
 
-def fetch_statuses_all(client):
-    response = requests.get(url=client.url('/rest/api/3/status'),
-                            auth=client.auth(),
-                            headers=headers())
-    if response.status_code != 200:
-        logging.warning('Could not fetch statuses')
-        return {}
-    return json.loads(response.text)
+    def fetch_statuses_all(self):
+        return self.request(method='GET', path='/rest/api/3/status')
 
+    def fetch_project(self, project_key):
+        return self.request(method='GET', path=f'/rest/api/3/project/{project_key}')
 
-def fetch_project(client, project_key):
-    response = requests.get(url=client.url(f'/rest/api/3/project/{project_key}'),
-                            auth=client.auth(),
-                            headers=headers())
-    if response.status_code != 200:
-        logging.warning(f'Could not fetch project {project_key}')
-        return {}
-    return json.loads(response.text)
+    def fetch_statuses_by_project(self, project_key):
+        return self.request(method='GET', path=f'/rest/api/3/project/{project_key}/statuses')
 
-
-def fetch_statuses_by_project(client, project_key):
-    response = requests.get(url=client.url(f'/rest/api/3/project/{project_key}/statuses'),
-                            auth=client.auth(),
-                            headers=headers())
-    if response.status_code != 200:
-        logging.warning(f'Could not fetch project {project_key} statuses')
-        return {}
-    return json.loads(response.text)
-
-
-def fetch_issues(client,
-                 project_key,
-                 since,
-                 start=0,
-                 limit=1000,
-                 custom_fields=None,
-                 updates_only=False,
-                 use_get=False):
-
-    jql = f'project = {project_key} AND created >= "{since}" ORDER BY created ASC'
-
-    if updates_only:
-        jql = f'project = {project_key} AND updated >= "{since}" ORDER BY created ASC'
-
-    fields = ['parent',
-              'summary',
-              'status',
-              'issuetype',
-              'created',
-              'updated'
-              ]
-
-    if custom_fields:
-        fields = fields + custom_fields
-
-    payload = {
-      'jql':            jql,
-      'fieldsByKeys':   False,
-      'fields':         fields,
-      'expand':         'names',
-      'startAt':        start,
-      'maxResults':     limit,
-    }
-
-    if use_get:
-        response = requests.request(method='GET',
-                                    url=client.url('/rest/api/3/search'),
-                                    params=payload,
-                                    headers=headers(),
-                                    auth=client.auth()
-                                    )
-    else:
-        response = requests.request(method='POST',
-                                    url=client.url('/rest/api/3/search'),
-                                    data=json.dumps(payload),
-                                    headers=headers(),
-                                    auth=client.auth()
-                                    )
-
-    if response.status_code != 200:
-        logging.warning(f'Could not fetch issues since {since}')
-        return {}
-
-    return json.loads(response.text)
-
-
-def yield_issues_all(client,
+    def fetch_issues(self,
                      project_key,
                      since,
-                     batch=1000,
+                     start=0,
+                     limit=1000,
                      custom_fields=None,
                      updates_only=False,
                      use_get=False):
 
-    issues_count = fetch_issues(client=client,
-                                project_key=project_key,
-                                since=since,
-                                start=0,
-                                limit=0,
-                                custom_fields=custom_fields,
-                                updates_only=updates_only,
-                                use_get=use_get)
+        jql = (f'project = {project_key} '
+               f'AND {"updated" if updates_only else "created"} >= "{since}" '
+               f'ORDER BY created ASC')
 
-    total = issues_count.get('total', 0)
-    fetched = 0
-    while fetched < total:
-        j = fetch_issues(client=client,
-                         project_key=project_key,
-                         since=since,
-                         start=fetched,
-                         limit=batch,
-                         custom_fields=custom_fields,
-                         updates_only=updates_only,
-                         use_get=use_get)
+        fields = ['parent', 'summary', 'status', 'issuetype', 'created', 'updated']
 
-        if not j:
-            break
-        k = j.get('issues', [])
-        if not k:
-            break
-        for result in k:
-            yield result
-            fetched += 1
+        if custom_fields:
+            fields.extend(custom_fields)
 
+        payload = {
+            'jql': jql,
+            'fieldsByKeys': False,
+            'fields': fields,
+            'expand': 'names',
+            'startAt': start,
+            'maxResults': limit,
+        }
 
-def fetch_changelog(client,
-                    issue_id,
-                    start,
-                    limit):
+        if use_get:
+            return self.request(method='GET', path='/rest/api/3/search', params=payload)
 
-    params = {
-        'startAt':      start,
-        'maxResults':   limit
-    }
+        return self.request(method='POST', path='/rest/api/3/search', params=payload)
 
-    response = requests.request(method='GET',
-                                url=client.url(f'/rest/api/3/issue/{issue_id}/changelog'),
-                                params=params,
-                                auth=client.auth(),
-                                headers=headers())
+    def fetch_changelog(self, issue_id, start, limit):
+        params = {'startAt': start, 'maxResults': limit}
+        return self.request(method='GET', path=f'/rest/api/3/issue/{issue_id}/changelog', params=params)
 
-    if response.status_code != 200:
-        logging.warning(f'Could not fetch changelog for issue {issue_id}')
-        return {}
-    return json.loads(response.text)
+    def yield_issues_all(self,
+                         project_key,
+                         since,
+                         batch=1000,
+                         custom_fields=None,
+                         updates_only=False,
+                         use_get=False):
 
+        issues_count = self.fetch_issues(project_key=project_key,
+                                         since=since,
+                                         start=0,
+                                         limit=0,
+                                         custom_fields=custom_fields,
+                                         updates_only=updates_only,
+                                         use_get=use_get)
 
-def yield_changelog_all(client,
-                        issue_id,
-                        batch=1000):
-
-    starting_limit = 10
-    changelog_count = fetch_changelog(client,
-                                      issue_id,
-                                      start=0,
-                                      limit=starting_limit)
-    total = changelog_count.get('total', 0)
-    if total <= starting_limit:
-        for result in changelog_count.get('values', []):
-            yield result
-    else:
+        total = issues_count.get('total', 0)
         fetched = 0
         while fetched < total:
-            j = fetch_changelog(client,
-                                issue_id,
-                                start=fetched,
-                                limit=batch)
+            j = self.fetch_issues(project_key=project_key,
+                                  since=since,
+                                  start=fetched,
+                                  limit=batch,
+                                  custom_fields=custom_fields,
+                                  updates_only=updates_only,
+                                  use_get=use_get)
+
             if not j:
                 break
-            k = j.get('values', [])
+            k = j.get('issues', [])
             if not k:
                 break
             for result in k:
                 yield result
                 fetched += 1
 
+    def yield_changelog_all(self,
+                            issue_id,
+                            batch=1000):
 
-def fetch(client,
-          project_key,
-          since,
-          custom_fields=None,
-          updates_only=False):
-
-    logging.info(f'Fetching project {project_key} since {since}...')
-
-    # Get high level information fresh every time
-    with requests_cache.disabled():
-        categories = fetch_status_categories_all(client)
-        statuses = fetch_statuses_all(client)
-        project = fetch_project(client, project_key)
-        # Fetch issues' statuses of the project
-        project_statuses = fetch_statuses_by_project(client, project_key)
-
-    # Compute lookup tables
-    categories_by_category_id = {}
-    for category in categories:
-        categories_by_category_id[category.get('id')] = category
-
-    status_categories_by_status_id = {}
-    for status in statuses:
-        status_categories_by_status_id[int(status.get('id'))] = \
-            categories_by_category_id[status.get('statusCategory', {}).get('id')]
-
-    issues = yield_issues_all(client=client,
-                              project_key=project_key,
-                              since=since,
-                              custom_fields=custom_fields,
-                              updates_only=updates_only,
-                              use_get=True)
-
-    for issue in issues:
-        logging.info(f"Fetching issue {issue.get('key')}...")
-
-        issue_id = issue.get('id')
-
-        prefix = {
-            'project_id':           project.get('id'),
-            'project_key':          project.get('key'),
-            'issue_id':             issue.get('id'),
-            'issue_key':            issue.get('key'),
-            'issue_type_id':        issue.get('fields', {}).get('issuetype', {}).get('id'),
-            'issue_type_name':      issue.get('fields', {}).get('issuetype', {}).get('name'),
-            'issue_title':          issue.get('fields', {}).get('summary'),
-            'issue_created_date':   issue.get('fields', {}).get('created'),
-        }
-
-        suffix = {}
-        if custom_fields:
-            suffix = {k: issue.get('fields', {}).get(k) for k in custom_fields}
-
-        changelog = yield_changelog_all(client, issue_id)
-        has_status = False
-        for change_set in changelog:
-            logging.info(f"Fetching changelog for issue {issue.get('key')}...")
-
-            for record in change_set.get('items', []):
-                if record.get('field') == 'status':
-                    from_category = status_categories_by_status_id.get(int(record.get('from')), {})
-                    to_category = status_categories_by_status_id.get(int(record.get('to')), {})
-
-                    row = dict(prefix)
-                    row.update({
-                        'changelog_id':                 change_set.get('id'),
-                        'status_from_id':               record.get('from'),
-                        'status_from_name':             record.get('fromString'),
-                        'status_to_id':                 record.get('to'),
-                        'status_to_name':               record.get('toString'),
-                        'status_from_category_name':    from_category.get('name'),
-                        'status_to_category_name':      to_category.get('name'),
-                        'status_change_date':           change_set.get('created'),
-                    })
-                    row.update(suffix)
-
-                    yield row
-
-                    has_status = True
-
-        # if we do not have a changelog status for this issue, we should emit a "new" status
-        if not has_status:
-            row = dict(prefix)
-            row.update({
-                'changelog_id':                 None,
-                'status_from_id':               None,
-                'status_from_name':             None,
-                'status_to_id':                 None,
-                'status_to_name':               None,
-                'status_from_category_name':    None,
-                'status_to_category_name':      None,
-                'status_change_date':           None
-            })
-            row.update(suffix)
-            yield row
-
-
-def generate_output_csv(client,
-                        csv_file,
-                        project_key,
-                        since,
-                        custom_fields=None,
-                        custom_field_names=None,
-                        updates_only=False,
-                        write_header=False,
-                        anonymize=False):
-    import datetime
-    import dateutil.parser
-    import pytz
-
-    field_names = ['project_id',
-                   'project_key',
-                   'issue_id',
-                   'issue_key',
-                   'issue_type_id',
-                   'issue_type_name',
-                   'issue_title',
-                   'issue_created_date',
-                   'changelog_id',
-                   'status_from_id',
-                   'status_from_name',
-                   'status_to_id',
-                   'status_to_name',
-                   'status_from_category_name',
-                   'status_to_category_name',
-                   'status_change_date',
-                   ]
-
-    custom_field_map = {}
-    if custom_fields:
-        if custom_field_names:
-            custom_field_map = dict(zip(custom_fields, custom_field_names))
-            field_names.extend(custom_field_names)
+        starting_limit = 10
+        changelog_count = self.fetch_changelog(issue_id, start=0, limit=starting_limit)
+        total = changelog_count.get('total', 0)
+        if total <= starting_limit:
+            for result in changelog_count.get('values', []):
+                yield result
         else:
-            field_names.extend(custom_fields)
+            fetched = 0
+            while fetched < total:
+                j = self.fetch_changelog(issue_id, start=fetched, limit=batch)
+                if not j:
+                    break
+                k = j.get('values', [])
+                if not k:
+                    break
+                for result in k:
+                    yield result
+                    fetched += 1
 
-    writer = csv.DictWriter(csv_file, fieldnames=field_names)
+    def fetch(self, project_key, since, custom_fields=None, updates_only=False):
 
-    if write_header:
-        writer.writeheader()
+        logging.info(f'Fetching project {project_key} since {since}...')
 
-    records = fetch(client=client,
-                    project_key=project_key,
-                    since=since,
-                    custom_fields=custom_fields,
-                    updates_only=updates_only)
-    count = 0
-    for record in records:
-        for key, value in record.items():
-            # ensure ISO datetime strings with TZ offsets to ISO datetime strings in UTC
-            if 'date' in key and value and not isinstance(value, datetime.datetime):
-                value = dateutil.parser.parse(value)
-                value = value.astimezone(pytz.UTC)
-                record[key] = value.isoformat()
+        # Get high level information fresh every time
+        with requests_cache.disabled():
+            categories = self.fetch_status_categories_all()
+            statuses = self.fetch_statuses_all()
+            project = self.fetch_project(project_key)
+            # Fetch issues' statuses of the project
+            project_statuses = self.fetch_statuses_by_project(project_key)
 
-        if anonymize:
-            record['issue_key'] = record['issue_key'].replace(record['project_key'], 'ANON')
-            record['project_key'] = 'ANON'
-            record['issue_title'] = 'Anonymized Title'
+        # Compute lookup tables
+        categories_by_category_id = {}
+        for category in categories:
+            categories_by_category_id[category.get('id')] = category
 
-        if custom_field_map:
-            for key, value in custom_field_map.items():
-                if key not in record:
-                    continue
-                record[value] = record[key]
-                del record[key]
+        status_categories_by_status_id = {}
+        for status in statuses:
+            status_categories_by_status_id[int(status.get('id'))] = \
+                categories_by_category_id[status.get('statusCategory', {}).get('id')]
 
-        writer.writerow(record)
-        count += 1
+        issues = self.yield_issues_all(project_key=project_key,
+                                       since=since,
+                                       custom_fields=custom_fields,
+                                       updates_only=updates_only,
+                                       use_get=True)
 
-    logging.info(f'{count} records written')
+        for issue in issues:
+            logging.info(f"Fetching issue {issue.get('key')}...")
+
+            issue_id = issue.get('id')
+
+            prefix = {
+                'project_id': project.get('id'),
+                'project_key': project.get('key'),
+                'issue_id': issue.get('id'),
+                'issue_key': issue.get('key'),
+                'issue_type_id': issue.get('fields', {}).get('issuetype', {}).get('id'),
+                'issue_type_name': issue.get('fields', {}).get('issuetype', {}).get('name'),
+                'issue_title': issue.get('fields', {}).get('summary'),
+                'issue_created_date': issue.get('fields', {}).get('created'),
+            }
+
+            suffix = {}
+            if custom_fields:
+                suffix = {k: issue.get('fields', {}).get(k) for k in custom_fields}
+
+            changelog = self.yield_changelog_all(issue_id)
+            has_status = False
+            for change_set in changelog:
+                logging.info(f"Fetching changelog for issue {issue.get('key')}...")
+
+                for record in change_set.get('items', []):
+                    if record.get('field') == 'status':
+                        from_category = status_categories_by_status_id.get(int(record.get('from')), {})
+                        to_category = status_categories_by_status_id.get(int(record.get('to')), {})
+
+                        row = dict(prefix)
+                        row.update({
+                            'changelog_id': change_set.get('id'),
+                            'status_from_id': record.get('from'),
+                            'status_from_name': record.get('fromString'),
+                            'status_to_id': record.get('to'),
+                            'status_to_name': record.get('toString'),
+                            'status_from_category_name': from_category.get('name'),
+                            'status_to_category_name': to_category.get('name'),
+                            'status_change_date': change_set.get('created'),
+                        })
+                        row.update(suffix)
+
+                        yield row
+
+                        has_status = True
+
+            # if we do not have a changelog status for this issue, we should emit a "new" status
+            if not has_status:
+                row = dict(prefix)
+                row.update({
+                    'changelog_id': None,
+                    'status_from_id': None,
+                    'status_from_name': None,
+                    'status_to_id': None,
+                    'status_to_name': None,
+                    'status_from_category_name': None,
+                    'status_to_category_name': None,
+                    'status_change_date': None
+                })
+                row.update(suffix)
+                yield row
+
+
+class CSVGenerator:
+    def __init__(self,
+                 client,
+                 csv_file,
+                 project_key,
+                 since,
+                 custom_fields=None,
+                 custom_field_names=None,
+                 updates_only=False,
+                 anonymize=False):
+        self.client = client
+        self.csv_file = csv_file
+        self.project_key = project_key
+        self.since = since
+        self.custom_fields = custom_fields
+        self.custom_field_names = custom_field_names
+        self.updates_only = updates_only
+        self.anonymize = anonymize
+        self.field_names = ['project_id',
+                            'project_key',
+                            'issue_id',
+                            'issue_key',
+                            'issue_type_id',
+                            'issue_type_name',
+                            'issue_title',
+                            'issue_created_date',
+                            'changelog_id',
+                            'status_from_id',
+                            'status_from_name',
+                            'status_to_id',
+                            'status_to_name',
+                            'status_from_category_name',
+                            'status_to_category_name',
+                            'status_change_date']
+        if self.custom_fields:
+            self.custom_field_map = dict(zip(custom_fields, custom_field_names)) if custom_field_names else {}
+            self.field_names.extend(self.custom_field_names or self.custom_fields)
+        else:
+            self.custom_field_map = {}
+
+    def generate(self, write_header=False):
+        writer = csv.DictWriter(f=self.csv_file, fieldnames=self.field_names)
+        if write_header:
+            writer.writeheader()
+
+        records = self.client.fetch(project_key=self.project_key,
+                                    since=self.since,
+                                    custom_fields=self.custom_fields,
+                                    updates_only=self.updates_only)
+
+        count = 0
+        for record in records:
+            for key, value in record.items():
+                if 'date' in key and value and not isinstance(value, datetime.datetime):
+                    value = dateutil.parser.parse(value).astimezone(pytz.UTC)
+                    record[key] = value.isoformat()
+
+            if self.anonymize:
+                record['issue_key'] = record['issue_key'].replace(record['project_key'], 'ANON')
+                record['project_key'] = 'ANON'
+                record['issue_title'] = 'Anonymized Title'
+
+            if self.custom_field_map:
+                for key, value in self.custom_field_map.items():
+                    if key in record:
+                        record[value] = record.pop(key)
+
+            writer.writerow(record)
+            count += 1
+
+        logging.info(f'{count} records written')
 
 
 def make_parser(domain, email, apikey, output_file):
@@ -471,15 +388,15 @@ def main():
 
     with open(args.output, mode, newline='') as csv_file:
         logging.info(f'{args.output} Opened for writing (mode: {mode})...')
-        generate_output_csv(client=client,
-                            csv_file=csv_file,
-                            project_key=args.project,
-                            since=args.since,
-                            custom_fields=custom_fields,
-                            custom_field_names=custom_field_names,
-                            updates_only=args.updates_only,
-                            write_header=not args.append,
-                            anonymize=args.anonymize)
+        csv_generator = CSVGenerator(client=client,
+                                     csv_file=csv_file,
+                                     project_key=args.project,
+                                     since=args.since,
+                                     custom_fields=custom_fields,
+                                     custom_field_names=custom_field_names,
+                                     updates_only=args.updates_only,
+                                     anonymize=args.anonymize)
+        csv_generator.generate(write_header=not args.append)
 
 
 if __name__ == '__main__':
