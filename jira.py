@@ -16,96 +16,93 @@ requests_cache.install_cache(cache_name='jira_cache', backend='sqlite', expire_a
 logger = logging.getLogger(__name__)
 
 
-class Client:
-    def __init__(self, domain='', email='', apikey=''):
+class ApiClient:
+    """Handles the API connection and requests."""
+    def __init__(self, domain, email, apikey):
         self.domain = domain
         self.email = email
         self.apikey = apikey
 
-    def url(self, path):
+    def _build_url(self, path):
         return self.domain + path
 
-    def auth(self):
+    def _get_auth(self):
         return HTTPBasicAuth(self.email, self.apikey)
 
     def request(self, method, path, params=None, data=None):
-        url = self.url(path)
+        url = self._build_url(path)
         headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
-        if method == 'GET':
-            response = requests.get(url, params=params, headers=headers, auth=self.auth())
-        else:
-            response = requests.post(url, json=data, headers=headers, auth=self.auth())
+        auth = self._get_auth()
 
+        response = requests.request(method, url, params=params, json=data, headers=headers, auth=auth)
         if response.status_code != 200:
             logging.warning(f'Error fetching data from {url}: {response.status_code}')
             return {}
+
         return json.loads(response.text)
 
-    def fetch_status_categories_all(self):
-        return self.request(method='GET', path='/rest/api/3/statuscategory')
 
-    def fetch_statuses_all(self):
-        return self.request(method='GET', path='/rest/api/3/status')
+class JiraDataFetcher:
+    """Responsible for fetching specific data from the Jira API."""
+    def __init__(self, client: ApiClient):
+        self.client = client
 
-    def fetch_project(self, project_key):
-        return self.request(method='GET', path=f'/rest/api/3/project/{project_key}')
+    def get_status_categories(self):
+        return self.client.request('GET', '/rest/api/3/statuscategory')
 
-    def fetch_statuses_by_project(self, project_key):
-        return self.request(method='GET', path=f'/rest/api/3/project/{project_key}/statuses')
+    def get_statuses(self):
+        return self.client.request('GET', '/rest/api/3/status')
 
-    def fetch_issues(self,
-                     project_key,
-                     since,
-                     start=0,
-                     limit=1000,
-                     custom_fields=None,
-                     updates_only=False,
-                     use_get=False):
+    def get_project(self, project_key):
+        return self.client.request('GET', f'/rest/api/3/project/{project_key}')
 
+    def get_project_statuses(self, project_key):
+        return self.client.request('GET', f'/rest/api/3/project/{project_key}/statuses')
+
+    def search_issues(self, jql, fields, start=0, limit=100):
+        payload = {
+            'jql': jql,
+            'fieldsByKeys': False,
+            'fields': fields,
+            'startAt': start,
+            'maxResults': limit,
+        }
+        return self.client.request('POST', '/rest/api/3/search', data=payload)
+
+    def get_issue_changelog(self, issue_id, start=0, limit=100):
+        return self.client.request(method='GET',
+                                   path=f'/rest/api/3/issue/{issue_id}/changelog',
+                                   params={'startAt': start, 'maxResults': limit})
+
+
+class JiraIssueExtractor:
+    """Extracts issues and changelogs with logic specific to Jira issues."""
+    def __init__(self, fetcher: JiraDataFetcher):
+        self.fetcher = fetcher
+
+    def fetch_issues(self, project_key, since, start=0, limit=100, custom_fields=None, updates_only=False):
         jql = (f'project = {project_key} '
                f'AND {"updated" if updates_only else "created"} >= "{since}" '
                f'ORDER BY created ASC')
 
         fields = ['parent', 'summary', 'status', 'issuetype', 'created', 'updated']
-
         if custom_fields:
             fields.extend(custom_fields)
 
-        payload = {
-            'jql': jql,
-            'fieldsByKeys': False,
-            'fields': fields,
-            'expand': 'names',
-            'startAt': start,
-            'maxResults': limit,
-        }
+        return self.fetcher.search_issues(jql=jql, fields=fields, start=start, limit=limit)
 
-        if use_get:
-            return self.request(method='GET', path='/rest/api/3/search', params=payload)
+    def fetch_changelog(self, issue_id, start=0, limit=100):
+        return self.fetcher.get_issue_changelog(issue_id, start, limit)
 
-        return self.request(method='POST', path='/rest/api/3/search', params=payload)
+    def yield_issues(self, project_key, since, batch=100, custom_fields=None, updates_only=False):
+        issues = self.fetch_issues(project_key=project_key,
+                                   since=since,
+                                   start=0,
+                                   limit=0,
+                                   custom_fields=custom_fields,
+                                   updates_only=updates_only)
 
-    def fetch_changelog(self, issue_id, start, limit):
-        params = {'startAt': start, 'maxResults': limit}
-        return self.request(method='GET', path=f'/rest/api/3/issue/{issue_id}/changelog', params=params)
-
-    def yield_issues_all(self,
-                         project_key,
-                         since,
-                         batch=1000,
-                         custom_fields=None,
-                         updates_only=False,
-                         use_get=False):
-
-        issues_count = self.fetch_issues(project_key=project_key,
-                                         since=since,
-                                         start=0,
-                                         limit=0,
-                                         custom_fields=custom_fields,
-                                         updates_only=updates_only,
-                                         use_get=use_get)
-
-        total = issues_count.get('total', 0)
+        total = issues.get('total', 0)
         fetched = 0
         while fetched < total:
             j = self.fetch_issues(project_key=project_key,
@@ -113,8 +110,7 @@ class Client:
                                   start=fetched,
                                   limit=batch,
                                   custom_fields=custom_fields,
-                                  updates_only=updates_only,
-                                  use_get=use_get)
+                                  updates_only=updates_only)
 
             if not j:
                 break
@@ -125,15 +121,12 @@ class Client:
                 yield result
                 fetched += 1
 
-    def yield_changelog_all(self,
-                            issue_id,
-                            batch=1000):
-
+    def yield_changelog(self, issue_id, batch=100):
         starting_limit = 10
-        changelog_count = self.fetch_changelog(issue_id, start=0, limit=starting_limit)
-        total = changelog_count.get('total', 0)
+        changelog_items = self.fetch_changelog(issue_id, start=0, limit=starting_limit)
+        total = changelog_items.get('total', 0)
         if total <= starting_limit:
-            for result in changelog_count.get('values', []):
+            for result in changelog_items.get('values', []):
                 yield result
         else:
             fetched = 0
@@ -154,11 +147,11 @@ class Client:
 
         # Get high level information fresh every time
         with requests_cache.disabled():
-            categories = self.fetch_status_categories_all()
-            statuses = self.fetch_statuses_all()
-            project = self.fetch_project(project_key)
+            categories = self.fetcher.get_status_categories()
+            statuses = self.fetcher.get_statuses()
+            project = self.fetcher.get_project(project_key)
             # Fetch issues' statuses of the project
-            project_statuses = self.fetch_statuses_by_project(project_key)
+            project_statuses = self.fetcher.get_project_statuses(project_key)
 
         # Compute lookup tables
         categories_by_category_id = {}
@@ -170,11 +163,10 @@ class Client:
             status_categories_by_status_id[int(status.get('id'))] = \
                 categories_by_category_id[status.get('statusCategory', {}).get('id')]
 
-        issues = self.yield_issues_all(project_key=project_key,
-                                       since=since,
-                                       custom_fields=custom_fields,
-                                       updates_only=updates_only,
-                                       use_get=True)
+        issues = self.yield_issues(project_key=project_key,
+                                   since=since,
+                                   custom_fields=custom_fields,
+                                   updates_only=updates_only)
 
         for issue in issues:
             logging.info(f"Fetching issue {issue.get('key')}...")
@@ -196,7 +188,7 @@ class Client:
             if custom_fields:
                 suffix = {k: issue.get('fields', {}).get(k) for k in custom_fields}
 
-            changelog = self.yield_changelog_all(issue_id)
+            changelog = self.yield_changelog(issue_id)
             has_status = False
             for change_set in changelog:
                 logging.info(f"Fetching changelog for issue {issue.get('key')}...")
@@ -240,9 +232,9 @@ class Client:
                 yield row
 
 
-class CSVGenerator:
+class CSVReportGenerator:
     def __init__(self,
-                 client,
+                 extractor,
                  csv_file,
                  project_key,
                  since,
@@ -250,7 +242,7 @@ class CSVGenerator:
                  custom_field_names=None,
                  updates_only=False,
                  anonymize=False):
-        self.client = client
+        self.extractor = extractor
         self.csv_file = csv_file
         self.project_key = project_key
         self.since = since
@@ -285,10 +277,10 @@ class CSVGenerator:
         if write_header:
             writer.writeheader()
 
-        records = self.client.fetch(project_key=self.project_key,
-                                    since=self.since,
-                                    custom_fields=self.custom_fields,
-                                    updates_only=self.updates_only)
+        records = self.extractor.fetch(project_key=self.project_key,
+                                       since=self.since,
+                                       custom_fields=self.custom_fields,
+                                       updates_only=self.updates_only)
 
         count = 0
         for record in records:
@@ -378,7 +370,9 @@ def main():
 
     logging.info(f'Connecting to {args.domain} with {args.email} email...')
 
-    client = Client(domain=args.domain, email=args.email, apikey=args.apikey)
+    client = ApiClient(domain=args.domain, email=args.email, apikey=args.apikey)
+    fetcher = JiraDataFetcher(client)
+    extractor = JiraIssueExtractor(fetcher)
 
     mode = 'a' if args.append else 'w'
 
@@ -388,14 +382,14 @@ def main():
 
     with open(args.output, mode, newline='') as csv_file:
         logging.info(f'{args.output} Opened for writing (mode: {mode})...')
-        csv_generator = CSVGenerator(client=client,
-                                     csv_file=csv_file,
-                                     project_key=args.project,
-                                     since=args.since,
-                                     custom_fields=custom_fields,
-                                     custom_field_names=custom_field_names,
-                                     updates_only=args.updates_only,
-                                     anonymize=args.anonymize)
+        csv_generator = CSVReportGenerator(extractor=extractor,
+                                           csv_file=csv_file,
+                                           project_key=args.project,
+                                           since=args.since,
+                                           custom_fields=custom_fields,
+                                           custom_field_names=custom_field_names,
+                                           updates_only=args.updates_only,
+                                           anonymize=args.anonymize)
         csv_generator.generate(write_header=not args.append)
 
 
