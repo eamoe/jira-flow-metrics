@@ -246,31 +246,53 @@ class CSVReportGenerator:
         self.csv_file = csv_file
         self.project_key = project_key
         self.since = since
-        self.custom_fields = custom_fields
-        self.custom_field_names = custom_field_names
+        self.custom_fields = custom_fields or []
+        self.custom_field_names = custom_field_names or []
         self.updates_only = updates_only
         self.anonymize = anonymize
-        self.field_names = ['project_id',
-                            'project_key',
-                            'issue_id',
-                            'issue_key',
-                            'issue_type_id',
-                            'issue_type_name',
-                            'issue_title',
-                            'issue_created_date',
-                            'changelog_id',
-                            'status_from_id',
-                            'status_from_name',
-                            'status_to_id',
-                            'status_to_name',
-                            'status_from_category_name',
-                            'status_to_category_name',
-                            'status_change_date']
-        if self.custom_fields:
-            self.custom_field_map = dict(zip(custom_fields, custom_field_names)) if custom_field_names else {}
-            self.field_names.extend(self.custom_field_names or self.custom_fields)
-        else:
-            self.custom_field_map = {}
+        self.field_names = self._build_field_names()
+
+    def _build_field_names(self):
+        default_fields = ['project_id',
+                          'project_key',
+                          'issue_id',
+                          'issue_key',
+                          'issue_type_id',
+                          'issue_type_name',
+                          'issue_title',
+                          'issue_created_date',
+                          'changelog_id',
+                          'status_from_id',
+                          'status_from_name',
+                          'status_to_id',
+                          'status_to_name',
+                          'status_from_category_name',
+                          'status_to_category_name',
+                          'status_change_date']
+        # Append custom field names or ids
+        return default_fields + (self.custom_field_names or self.custom_fields)
+
+    def _map_custom_fields(self, record):
+        """Map custom fields to their corresponding names if provided."""
+        custom_field_map = dict(zip(self.custom_fields, self.custom_field_names))
+        for field_id, field_name in custom_field_map.items():
+            if field_id in record:
+                record[field_name] = record.pop(field_id)
+        return record
+
+    def _anonymize_record(self, record):
+        """Anonymize sensitive fields in the record."""
+        record['issue_key'] = record['issue_key'].replace(record['project_key'], 'ANON')
+        record['project_key'] = 'ANON'
+        record['issue_title'] = 'Anonymized Title'
+        return record
+
+    def _parse_dates(self, record):
+        """Convert date fields to ISO format."""
+        for key, value in record.items():
+            if 'date' in key and value and not isinstance(value, datetime.datetime):
+                record[key] = dateutil.parser.parse(value).astimezone(pytz.UTC).isoformat()
+        return record
 
     def generate(self, write_header=False):
         writer = csv.DictWriter(f=self.csv_file, fieldnames=self.field_names)
@@ -284,20 +306,13 @@ class CSVReportGenerator:
 
         count = 0
         for record in records:
-            for key, value in record.items():
-                if 'date' in key and value and not isinstance(value, datetime.datetime):
-                    value = dateutil.parser.parse(value).astimezone(pytz.UTC)
-                    record[key] = value.isoformat()
+            record = self._parse_dates(record)
 
             if self.anonymize:
-                record['issue_key'] = record['issue_key'].replace(record['project_key'], 'ANON')
-                record['project_key'] = 'ANON'
-                record['issue_title'] = 'Anonymized Title'
+                record = self._anonymize_record(record)
 
-            if self.custom_field_map:
-                for key, value in self.custom_field_map.items():
-                    if key in record:
-                        record[value] = record.pop(key)
+            if self.custom_fields:
+                record = self._map_custom_fields(record)
 
             writer.writerow(record)
             count += 1
@@ -305,49 +320,62 @@ class CSVReportGenerator:
         logging.info(f'{count} records written')
 
 
-def make_parser(domain, email, apikey, output_file):
-    parser = argparse.ArgumentParser(description='Extract changelog of Jira project issue')
-    parser.add_argument('project',
-                        help='Jira project from which to extract issues')
-    parser.add_argument('since',
-                        help='Date from which to start extracting issues (yyyy-mm-dd)')
-    parser.add_argument('--updates-only',
-                        action='store_true',
-                        help="When passed, instead of extracting issues created since the since argument, "
-                             "only issues *updated* since the since argument will be extracted.")
-    parser.add_argument('--append',
-                        action='store_true',
-                        help='Append to the output file instead of overwriting it.')
-    parser.add_argument('--anonymize',
-                        action='store_true',
-                        help='Anonymize the data output (no issue titles, project keys, etc).')
-    parser.add_argument('-d', '--domain',
-                        default=domain,
-                        help='Jira project domain url (i.e., https://company.atlassian.net). '
-                             'Can also be provided via JIRA_DOMAIN environment variable.')
-    parser.add_argument('-e', '--email',
-                        default=email,
-                        help='Jira user email address for authentication. '
-                             'Can also be provided via JIRA_EMAIL environment variable.')
-    parser.add_argument('-k', '--apikey',
-                        default=apikey,
-                        help='Jira user api key for authentication. '
-                             'Can also be provided via JIRA_APIKEY environment variable.')
-    parser.add_argument('-o', '--output',
-                        default=output_file,
-                        help='File to store the csv output.')
-    parser.add_argument('-q', '--quiet',
-                        action='store_true',
-                        help='Be quiet and only output warnings to console.')
-    parser.add_argument('-f', '--field',
-                        metavar='FIELD_ID',
-                        action='append',
-                        help='Include one or more custom fields in the query by id.')
-    parser.add_argument('-n', '--name',
-                        metavar='FIELD_NAME',
-                        action='append',
-                        help='Corresponding output column names for each custom field.')
-    return parser
+class JiraArgumentParser:
+    """Handles argument parsing for the Jira data extraction script."""
+    def __init__(self, domain, email, apikey, output_file):
+        self.domain = domain
+        self.email = email
+        self.apikey = apikey
+        self.output_file = output_file
+
+    def make_parser(self):
+        parser = argparse.ArgumentParser(description='Extract changelog of Jira project issue')
+        parser.add_argument('project',
+                            help='Jira project from which to extract issues')
+        parser.add_argument('since',
+                            help='Date from which to start extracting issues (yyyy-mm-dd)')
+        parser.add_argument('--updates-only',
+                            action='store_true',
+                            help="When passed, instead of extracting issues created since the since argument, "
+                                 "only issues *updated* since the since argument will be extracted.")
+        parser.add_argument('--append',
+                            action='store_true',
+                            help='Append to the output file instead of overwriting it.')
+        parser.add_argument('--anonymize',
+                            action='store_true',
+                            help='Anonymize the data output (no issue titles, project keys, etc).')
+        parser.add_argument('-d', '--domain',
+                            default=self.domain,
+                            help='Jira project domain url (i.e., https://company.atlassian.net). '
+                                 'Can also be provided via JIRA_DOMAIN environment variable.')
+        parser.add_argument('-e', '--email',
+                            default=self.email,
+                            help='Jira user email address for authentication. '
+                                 'Can also be provided via JIRA_EMAIL environment variable.')
+        parser.add_argument('-k', '--apikey',
+                            default=self.apikey,
+                            help='Jira user api key for authentication. '
+                                 'Can also be provided via JIRA_APIKEY environment variable.')
+        parser.add_argument('-o', '--output',
+                            default=self.output_file,
+                            help='File to store the csv output.')
+        parser.add_argument('-q', '--quiet',
+                            action='store_true',
+                            help='Be quiet and only output warnings to console.')
+        parser.add_argument('-f', '--field',
+                            metavar='FIELD_ID',
+                            action='append',
+                            help='Include one or more custom fields in the query by id.')
+        parser.add_argument('-n', '--name',
+                            metavar='FIELD_NAME',
+                            action='append',
+                            help='Corresponding output column names for each custom field.')
+
+        return parser
+
+    def parse_args(self, args=None):
+        parser = self.make_parser()
+        return parser.parse_args(args)
 
 
 def main():
@@ -357,7 +385,7 @@ def main():
     apikey = config('JIRA_APIKEY')
     output_file = config('JIRA_OUTPUT_FILE')
 
-    parser = make_parser(domain=domain, email=email, apikey=apikey, output_file=output_file)
+    parser = JiraArgumentParser(domain=domain, email=email, apikey=apikey, output_file=output_file)
     args = parser.parse_args()
 
     if not args.quiet:
