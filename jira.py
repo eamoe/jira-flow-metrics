@@ -378,35 +378,56 @@ class JiraArgumentParser:
         return parser.parse_args(args)
 
 
+def validate_date_format(date_string):
+    try:
+        datetime.datetime.strptime(date_string, '%Y-%m-%d')
+    except ValueError:
+        logger.error(f"Invalid date format for '{date_string}'. It should be in the format YYYY-MM-DD.")
+        sys.exit(1)
+
+
 def main():
+    # Load environment variables
+    domain = config('JIRA_DOMAIN', default='https://yourdomain.atlassian.net')
+    email = config('JIRA_EMAIL', default='your-email@example.com')
+    apikey = config('JIRA_APIKEY', default='your-api-key')
+    output_file = config('JIRA_OUTPUT_FILE', default='jira_issues.csv')
 
-    domain = config('JIRA_DOMAIN')
-    email = config('JIRA_EMAIL')
-    apikey = config('JIRA_APIKEY')
-    output_file = config('JIRA_OUTPUT_FILE')
-
+    # Instantiate argument parser
     parser = JiraArgumentParser(domain=domain, email=email, apikey=apikey, output_file=output_file)
     args = parser.parse_args()
 
-    if not args.quiet:
-        logging.basicConfig(level=logging.INFO)
-
+    # Check necessary args
     if not all((args.domain, args.email, args.apikey)):
         parser.error("The JIRA_DOMAIN, JIRA_EMAIL, and JIRA_APIKEY environment variables "
                      "must be set or provided via the -d -e -k command line flags.")
         return
 
-    logging.info(f'Connecting to {args.domain} with {args.email} email...')
+    # Argument validation
+    validate_date_format(args.since)
 
-    client = ApiClient(domain=args.domain, email=args.email, apikey=args.apikey)
-    fetcher = JiraDataFetcher(client)
-    extractor = JiraIssueExtractor(fetcher)
+    # Setup logger to suppress messages if --quiet flag is used
+    if args.quiet:
+        logger.basicConfig(level=logging.ERROR)
+    else:
+        logging.basicConfig(level=logging.INFO)
 
+    # Set file mode
     mode = 'a' if args.append else 'w'
 
+    # Set custom fields
     custom_fields = [k if k.startswith('customfield') else 'customfield_{}'.format(k) for k in
                      args.field] if args.field else []
     custom_field_names = list(args.name or []) + custom_fields[len(args.name or []):]
+
+    logging.info(f'Connecting to {args.domain} with {args.email} email...')
+
+    # API Client
+    client = ApiClient(domain=args.domain, email=args.email, apikey=args.apikey)
+    fetcher = JiraDataFetcher(client)
+
+    # Issue extractor
+    extractor = JiraIssueExtractor(fetcher)
 
     with open(args.output, mode, newline='') as csv_file:
         logging.info(f'{args.output} Opened for writing (mode: {mode})...')
