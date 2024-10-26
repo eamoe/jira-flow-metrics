@@ -13,6 +13,7 @@ from jira.utils.exceptions import (JiraConfigurationError,
                                    JiraDataFetchError,
                                    JiraReportGenerationError,
                                    JiraArgumentError)
+from jira.reporting.report_generator import JiraReportGenerator
 
 
 logging.basicConfig(level=logging.INFO)
@@ -33,49 +34,6 @@ def setup_cache():
     requests_cache.install_cache(cache_name='jira_cache', backend='sqlite', expire_after=24 * 60 * 60)
 
 
-def initialize_client(args):
-    """Initialize the JIRA API client."""
-    logger.info(f'Connecting to {args.domain} with {args.email} email...')
-    try:
-        return ApiClient(domain=args.domain, email=args.email, apikey=args.apikey)
-    except Exception as e:
-        raise JiraConnectionError(f"Failed to connect to JIRA: {e}")
-
-
-def fetch_data(client):
-    """Fetch data from JIRA using the provided client."""
-    try:
-        fetcher = JiraDataFetcher(client)
-        return JiraIssueExtractor(fetcher)
-    except Exception as e:
-        raise JiraDataFetchError(f"Error fetching data from JIRA: {e}")
-
-
-def write_to_csv(args, extractor):
-    """Write the fetched data to a CSV file."""
-    mode = 'a' if args.append else 'w'
-    try:
-        with open(args.output, mode, newline='') as csv_file:
-            csv_generator = CSVReportGenerator(extractor=extractor,
-                                               csv_file=csv_file,
-                                               project_key=args.project,
-                                               since=args.since,
-                                               custom_fields=args.field,
-                                               custom_field_names=args.name,
-                                               updates_only=args.updates_only,
-                                               anonymize=args.anonymize)
-            csv_generator.generate(write_header=not args.append)
-    except Exception as e:
-        raise JiraReportGenerationError(f"Failed to generate report: {e}")
-
-
-def generate_report(args):
-    """Generate the JIRA CSV report based on the given arguments."""
-    client = initialize_client(args)
-    extractor = fetch_data(client)
-    write_to_csv(args, extractor)
-
-
 def main():
     setup_cache()
 
@@ -92,7 +50,8 @@ def main():
     logger.setLevel(log_level)  # Set specific logger level
 
     try:
-        generate_report(args)
+        report_generator = JiraReportGenerator(args)
+        report_generator.run()
     except (JiraConfigurationError,
             JiraConnectionError,
             JiraDataFetchError,
