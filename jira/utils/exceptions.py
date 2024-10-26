@@ -16,3 +16,8 @@ class JiraDataFetchError(Exception):
 class JiraReportGenerationError(Exception):
     """Exception raised when there is an error generating the JIRA report."""
     pass
+
+
+class JiraArgumentError(Exception):
+    """Custom exception for argument parsing errors."""
+    pass

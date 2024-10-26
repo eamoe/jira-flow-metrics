@@ -12,7 +12,8 @@ from jira.reporting.csv_generator import CSVReportGenerator
 from jira.utils.exceptions import (JiraConfigurationError,
                                    JiraConnectionError,
                                    JiraDataFetchError,
-                                   JiraReportGenerationError)
+                                   JiraReportGenerationError,
+                                   JiraArgumentError)
 
 
 logging.basicConfig(level=logging.INFO)
@@ -22,20 +23,10 @@ logger = logging.getLogger(__name__)
 def get_config_values():
     """Load configuration."""
     try:
-        config = Config()
-        values = {
-            **config.get_jira_credentials(),
-            **config.get_output_file()
-        }
+        values = Config().values()
     except Exception as e:
         raise JiraConfigurationError(f"Error loading configuration: {e}")
     return values
-
-
-def parse_arguments(config_values):
-    """Parse command line arguments."""
-    parser = JiraArgumentParser(**config_values)
-    return parser.parse_args()
 
 
 def setup_cache():
@@ -91,10 +82,11 @@ def generate_report(args, custom_fields, custom_field_names):
 
 
 def main():
+
     try:
         config_values = get_config_values()
-        args = parse_arguments(config_values)
-    except JiraConfigurationError as e:
+        args = JiraArgumentParser(**config_values).parse()
+    except (JiraConfigurationError, JiraArgumentError) as e:
         logger.error(e)
         sys.exit(1)
 

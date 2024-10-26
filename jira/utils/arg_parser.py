@@ -1,5 +1,7 @@
 import argparse
 
+from .exceptions import JiraArgumentError
+
 
 class JiraArgumentParser:
     """Handles argument parsing for the Jira data extraction script."""
@@ -9,7 +11,7 @@ class JiraArgumentParser:
         self.apikey = apikey
         self.output_file = output_file
 
-    def make_parser(self):
+    def __make_parser(self):
         parser = argparse.ArgumentParser(description='Extract changelog of Jira project issue')
         parser.add_argument('project',
                             help='Jira project from which to extract issues')
@@ -54,6 +56,10 @@ class JiraArgumentParser:
 
         return parser
 
-    def parse_args(self, args=None):
-        parser = self.make_parser()
-        return parser.parse_args(args)
+    def parse(self):
+        """Parse the command line arguments using the created parser."""
+        parser = self.__make_parser()
+        try:
+            return parser.parse_args()
+        except argparse.ArgumentError as e:
+            raise JiraArgumentError(f"Argument parsing error: {e}")
