@@ -1,9 +1,9 @@
-from decouple import config
 import requests_cache
 import datetime
 import sys
 import logging
 
+from jira.utils.config import Config
 from jira.utils.arg_parser import JiraArgumentParser
 from jira.api.client import ApiClient
 from jira.api.fetcher import JiraDataFetcher
@@ -15,14 +15,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def load_configuration():
-    """Load and return configuration values from environment variables."""
-    return {
-        'domain': config('JIRA_DOMAIN', default='https://yourdomain.atlassian.net'),
-        'email': config('JIRA_EMAIL', default='your-email@example.com'),
-        'apikey': config('JIRA_APIKEY', default='your-api-key'),
-        'output_file': config('JIRA_OUTPUT_FILE', default='jira_issues.csv')
+def get_config_values():
+    """Load configuration."""
+    config = Config()
+    values = {
+        **config.get_jira_credentials(),
+        **config.get_output_file()
     }
+    return values
+
+
+def parse_arguments(config_values):
+    """Parse command line arguments."""
+    parser = JiraArgumentParser(**config_values)
+    return parser.parse_args()
 
 
 def setup_cache():
@@ -72,9 +78,9 @@ def generate_report(args, custom_fields, custom_field_names):
 
 
 def main():
-    config_values = load_configuration()
-    parser = JiraArgumentParser(**config_values)
-    args = parser.parse_args()
+    config_values = get_config_values()
+
+    args = parse_arguments(config_values)
 
     # Set the global logging level based on --quiet flag
     log_level = logging.WARNING if args.quiet else logging.INFO
