@@ -33,15 +33,7 @@ def setup_cache():
     requests_cache.install_cache(cache_name='jira_cache', backend='sqlite', expire_after=24 * 60 * 60)
 
 
-def get_custom_fields(args):
-    """Return formatted custom fields and names based on arguments."""
-    custom_fields = [k if k.startswith('customfield') else 'customfield_{}'.format(k) for k in
-                     args.field] if args.field else []
-    custom_field_names = list(args.name or []) + custom_fields[len(args.name or []):]
-    return custom_fields, custom_field_names
-
-
-def generate_report(args, custom_fields, custom_field_names):
+def generate_report(args):
     """Generate the JIRA CSV report based on the given arguments."""
     logger.info(f'Connecting to {args.domain} with {args.email} email...')
 
@@ -63,8 +55,8 @@ def generate_report(args, custom_fields, custom_field_names):
                                                csv_file=csv_file,
                                                project_key=args.project,
                                                since=args.since,
-                                               custom_fields=custom_fields,
-                                               custom_field_names=custom_field_names,
+                                               custom_fields=args.field,
+                                               custom_field_names=args.name,
                                                updates_only=args.updates_only,
                                                anonymize=args.anonymize)
             csv_generator.generate(write_header=not args.append)
@@ -73,6 +65,7 @@ def generate_report(args, custom_fields, custom_field_names):
 
 
 def main():
+    setup_cache()
 
     try:
         config_values = get_config_values()
@@ -86,11 +79,8 @@ def main():
     logging.getLogger().setLevel(log_level)  # Set root logger level
     logger.setLevel(log_level)  # Set specific logger level
 
-    setup_cache()
-
     try:
-        custom_fields, custom_field_names = get_custom_fields(args)
-        generate_report(args, custom_fields, custom_field_names)
+        generate_report(args)
     except (JiraConfigurationError,
             JiraConnectionError,
             JiraDataFetchError,

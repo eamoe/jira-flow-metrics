@@ -89,11 +89,20 @@ class JiraArgumentParser:
 
         return parser
 
+    @staticmethod
+    def __get_custom_fields(namespace):
+        """Return formatted custom fields and names based on arguments."""
+        field_ids = [k if k.startswith('customfield') else 'customfield_{}'.format(k) for k in
+                     namespace.field] if namespace.field else []
+        field_names = list(namespace.name or []) + field_ids[len(namespace.name or []):]
+        return field_ids, field_names
+
     def parse(self):
         """Parse the command line arguments using the created parser."""
         parser = self.__make_parser()
         try:
             namespace = parser.parse_args()
+            namespace.field, namespace.name = self.__get_custom_fields(namespace)
             parsed_args = ParsedArgs(namespace)
             parsed_args.validate()
             return parsed_args
