@@ -9,6 +9,10 @@ from jira.api.client import ApiClient
 from jira.api.fetcher import JiraDataFetcher
 from jira.extraction.issue_extractor import JiraIssueExtractor
 from jira.reporting.csv_generator import CSVReportGenerator
+from jira.utils.exceptions import (JiraConfigurationError,
+                                   JiraConnectionError,
+                                   JiraDataFetchError,
+                                   JiraReportGenerationError)
 
 
 logging.basicConfig(level=logging.INFO)
@@ -17,11 +21,14 @@ logger = logging.getLogger(__name__)
 
 def get_config_values():
     """Load configuration."""
-    config = Config()
-    values = {
-        **config.get_jira_credentials(),
-        **config.get_output_file()
-    }
+    try:
+        config = Config()
+        values = {
+            **config.get_jira_credentials(),
+            **config.get_output_file()
+        }
+    except Exception as e:
+        raise JiraConfigurationError(f"Error loading configuration: {e}")
     return values
 
 
@@ -41,8 +48,7 @@ def validate_date_format(date_string):
         datetime.datetime.strptime(date_string, '%Y-%m-%d')
         return True
     except ValueError:
-        logger.error(f"Invalid date format for '{date_string}'. It should be in the format YYYY-MM-DD.")
-        return False
+        raise ValueError(f"Invalid date format for '{date_string}'. It should be in the format YYYY-MM-DD.")
 
 
 def get_custom_fields(args):
@@ -56,9 +62,17 @@ def get_custom_fields(args):
 def generate_report(args, custom_fields, custom_field_names):
     """Generate the JIRA CSV report based on the given arguments."""
     logger.info(f'Connecting to {args.domain} with {args.email} email...')
-    client = ApiClient(domain=args.domain, email=args.email, apikey=args.apikey)
-    fetcher = JiraDataFetcher(client)
-    extractor = JiraIssueExtractor(fetcher)
+
+    try:
+        client = ApiClient(domain=args.domain, email=args.email, apikey=args.apikey)
+    except Exception as e:
+        raise JiraConnectionError(f"Failed to connect to JIRA: {e}")
+
+    try:
+        fetcher = JiraDataFetcher(client)
+        extractor = JiraIssueExtractor(fetcher)
+    except Exception as e:
+        raise JiraDataFetchError(f"Error fetching data from JIRA: {e}")
 
     mode = 'a' if args.append else 'w'
     try:
@@ -73,14 +87,16 @@ def generate_report(args, custom_fields, custom_field_names):
                                                anonymize=args.anonymize)
             csv_generator.generate(write_header=not args.append)
     except Exception as e:
-        logger.error(f"Failed to generate report: {e}")
-        sys.exit(1)
+        raise JiraReportGenerationError(f"Failed to generate report: {e}")
 
 
 def main():
-    config_values = get_config_values()
-
-    args = parse_arguments(config_values)
+    try:
+        config_values = get_config_values()
+        args = parse_arguments(config_values)
+    except JiraConfigurationError as e:
+        logger.error(e)
+        sys.exit(1)
 
     # Set the global logging level based on --quiet flag
     log_level = logging.WARNING if args.quiet else logging.INFO
@@ -89,16 +105,24 @@ def main():
 
     setup_cache()
 
-    if not all((args.domain, args.email, args.apikey)):
-        parser.error("The JIRA_DOMAIN, JIRA_EMAIL, and JIRA_APIKEY environment variables "
-                     "must be set or provided via the -d -e -k command line flags.")
-        return
+    try:
+        if not all((args.domain, args.email, args.apikey)):
+            parser.error("The JIRA_DOMAIN, JIRA_EMAIL, and JIRA_APIKEY environment variables "
+                         "must be set or provided via the -d -e -k command line flags.")
+            return
 
-    if not validate_date_format(args.since):
+        if not validate_date_format(args.since):
+            sys.exit(1)
+
+        custom_fields, custom_field_names = get_custom_fields(args)
+        generate_report(args, custom_fields, custom_field_names)
+    except (JiraConfigurationError,
+            JiraConnectionError,
+            JiraDataFetchError,
+            JiraReportGenerationError,
+            ValueError) as e:
+        logger.error(e)
         sys.exit(1)
-
-    custom_fields, custom_field_names = get_custom_fields(args)
-    generate_report(args, custom_fields, custom_field_names)
 
 
 if __name__ == '__main__':
