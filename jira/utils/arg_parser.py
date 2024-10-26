@@ -1,6 +1,39 @@
 import argparse
+import datetime
 
 from .exceptions import JiraArgumentError
+
+
+class ParsedArgs:
+    def __init__(self, namespace):
+        self.project = namespace.project
+        self.since = namespace.since
+        self.updates_only = namespace.updates_only
+        self.append = namespace.append
+        self.anonymize = namespace.anonymize
+        self.domain = namespace.domain
+        self.email = namespace.email
+        self.apikey = namespace.apikey
+        self.output = namespace.output
+        self.quiet = namespace.quiet
+        self.field = namespace.field
+        self.name = namespace.name
+
+    def validate(self):
+        """Validate the parsed arguments."""
+        if not all((self.domain, self.email, self.apikey)):
+            raise JiraArgumentError("The JIRA_DOMAIN, JIRA_EMAIL, and JIRA_APIKEY must be provided.")
+
+        if not self.__validate_date_format(self.since):
+            raise JiraArgumentError(f"Invalid date format for '{self.since}'. It should be in the format YYYY-MM-DD.")
+
+    @staticmethod
+    def __validate_date_format(date_string):
+        try:
+            datetime.datetime.strptime(date_string, '%Y-%m-%d')
+            return True
+        except ValueError:
+            return False
 
 
 class JiraArgumentParser:
@@ -60,6 +93,9 @@ class JiraArgumentParser:
         """Parse the command line arguments using the created parser."""
         parser = self.__make_parser()
         try:
-            return parser.parse_args()
-        except argparse.ArgumentError as e:
+            namespace = parser.parse_args()
+            parsed_args = ParsedArgs(namespace)
+            parsed_args.validate()
+            return parsed_args
+        except (argparse.ArgumentError, JiraArgumentError) as e:
             raise JiraArgumentError(f"Argument parsing error: {e}")

@@ -1,5 +1,4 @@
 import requests_cache
-import datetime
 import sys
 import logging
 
@@ -32,14 +31,6 @@ def get_config_values():
 def setup_cache():
     """Set up a requests cache to reduce API calls and improve performance."""
     requests_cache.install_cache(cache_name='jira_cache', backend='sqlite', expire_after=24 * 60 * 60)
-
-
-def validate_date_format(date_string):
-    try:
-        datetime.datetime.strptime(date_string, '%Y-%m-%d')
-        return True
-    except ValueError:
-        raise ValueError(f"Invalid date format for '{date_string}'. It should be in the format YYYY-MM-DD.")
 
 
 def get_custom_fields(args):
@@ -98,14 +89,6 @@ def main():
     setup_cache()
 
     try:
-        if not all((args.domain, args.email, args.apikey)):
-            parser.error("The JIRA_DOMAIN, JIRA_EMAIL, and JIRA_APIKEY environment variables "
-                         "must be set or provided via the -d -e -k command line flags.")
-            return
-
-        if not validate_date_format(args.since):
-            sys.exit(1)
-
         custom_fields, custom_field_names = get_custom_fields(args)
         generate_report(args, custom_fields, custom_field_names)
     except (JiraConfigurationError,
