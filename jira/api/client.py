@@ -20,11 +20,11 @@ class ApiClient:
         self.apikey = apikey
         self.headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
 
-    def _build_url(self, path):
+    def __build_url(self, path):
         """Constructs a full URL for a given API path."""
         return f"{self.domain}/{path.lstrip('/')}"
 
-    def _get_auth(self):
+    def __get_auth(self):
         """Returns HTTP basic authentication credentials."""
         return HTTPBasicAuth(self.email, self.apikey)
 
@@ -44,8 +44,8 @@ class ApiClient:
             requests.exceptions.RequestException: If the request fails.
             requests.exceptions.HTTPError: If the HTTP response status is an error.
         """
-        url = self._build_url(path)
-        auth = self._get_auth()
+        url = self.__build_url(path)
+        auth = self.__get_auth()
 
         try:
             response = requests.request(method, url, params=params, json=data, headers=self.headers, auth=auth)

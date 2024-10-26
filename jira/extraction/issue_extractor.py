@@ -9,7 +9,7 @@ class JiraIssueExtractor:
     def __init__(self, fetcher: JiraDataFetcher):
         self.fetcher = fetcher
 
-    def fetch_issues(self, project_key, since, start=0, limit=100, custom_fields=None, updates_only=False):
+    def __fetch_issues(self, project_key, since, start=0, limit=100, custom_fields=None, updates_only=False):
         jql = (f'project = {project_key} '
                f'AND {"updated" if updates_only else "created"} >= "{since}" '
                f'ORDER BY created ASC')
@@ -20,26 +20,26 @@ class JiraIssueExtractor:
 
         return self.fetcher.search_issues(jql=jql, fields=fields, start=start, limit=limit)
 
-    def fetch_changelog(self, issue_id, start=0, limit=100):
+    def __fetch_changelog(self, issue_id, start=0, limit=100):
         return self.fetcher.get_issue_changelog(issue_id, start, limit)
 
-    def yield_issues(self, project_key, since, batch=100, custom_fields=None, updates_only=False):
-        issues = self.fetch_issues(project_key=project_key,
-                                   since=since,
-                                   start=0,
-                                   limit=0,
-                                   custom_fields=custom_fields,
-                                   updates_only=updates_only)
+    def __yield_issues(self, project_key, since, batch=100, custom_fields=None, updates_only=False):
+        issues = self.__fetch_issues(project_key=project_key,
+                                     since=since,
+                                     start=0,
+                                     limit=0,
+                                     custom_fields=custom_fields,
+                                     updates_only=updates_only)
 
         total = issues.get('total', 0)
         fetched = 0
         while fetched < total:
-            j = self.fetch_issues(project_key=project_key,
-                                  since=since,
-                                  start=fetched,
-                                  limit=batch,
-                                  custom_fields=custom_fields,
-                                  updates_only=updates_only)
+            j = self.__fetch_issues(project_key=project_key,
+                                    since=since,
+                                    start=fetched,
+                                    limit=batch,
+                                    custom_fields=custom_fields,
+                                    updates_only=updates_only)
 
             if not j:
                 break
@@ -50,9 +50,9 @@ class JiraIssueExtractor:
                 yield result
                 fetched += 1
 
-    def yield_changelog(self, issue_id, batch=100):
+    def __yield_changelog(self, issue_id, batch=100):
         starting_limit = 10
-        changelog_items = self.fetch_changelog(issue_id, start=0, limit=starting_limit)
+        changelog_items = self.__fetch_changelog(issue_id, start=0, limit=starting_limit)
         total = changelog_items.get('total', 0)
         if total <= starting_limit:
             for result in changelog_items.get('values', []):
@@ -60,7 +60,7 @@ class JiraIssueExtractor:
         else:
             fetched = 0
             while fetched < total:
-                j = self.fetch_changelog(issue_id, start=fetched, limit=batch)
+                j = self.__fetch_changelog(issue_id, start=fetched, limit=batch)
                 if not j:
                     break
                 k = j.get('values', [])
@@ -93,10 +93,10 @@ class JiraIssueExtractor:
             status_categories_by_status_id[int(status.get('id'))] = \
                 categories_by_category_id[status.get('statusCategory', {}).get('id')]
 
-        issues = self.yield_issues(project_key=project_key,
-                                   since=since,
-                                   custom_fields=custom_fields,
-                                   updates_only=updates_only)
+        issues = self.__yield_issues(project_key=project_key,
+                                     since=since,
+                                     custom_fields=custom_fields,
+                                     updates_only=updates_only)
 
         for issue in issues:
             if logging.getLogger().isEnabledFor(logging.INFO):
@@ -119,7 +119,7 @@ class JiraIssueExtractor:
             if custom_fields:
                 suffix = {k: issue.get('fields', {}).get(k) for k in custom_fields}
 
-            changelog = self.yield_changelog(issue_id)
+            changelog = self.__yield_changelog(issue_id)
             has_status = False
             for change_set in changelog:
                 if logging.getLogger().isEnabledFor(logging.INFO):

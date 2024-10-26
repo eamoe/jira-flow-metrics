@@ -23,9 +23,9 @@ class CSVReportGenerator:
         self.custom_field_names = custom_field_names or []
         self.updates_only = updates_only
         self.anonymize = anonymize
-        self.field_names = self._build_field_names()
+        self.field_names = self.__build_field_names()
 
-    def _build_field_names(self):
+    def __build_field_names(self):
         default_fields = ['project_id',
                           'project_key',
                           'issue_id',
@@ -45,7 +45,7 @@ class CSVReportGenerator:
         # Append custom field names or ids
         return default_fields + (self.custom_field_names or self.custom_fields)
 
-    def _map_custom_fields(self, record):
+    def __map_custom_fields(self, record):
         """Map custom fields to their corresponding names if provided."""
         custom_field_map = dict(zip(self.custom_fields, self.custom_field_names))
         for field_id, field_name in custom_field_map.items():
@@ -53,14 +53,16 @@ class CSVReportGenerator:
                 record[field_name] = record.pop(field_id)
         return record
 
-    def _anonymize_record(self, record):
+    @staticmethod
+    def __anonymize_record(record):
         """Anonymize sensitive fields in the record."""
         record['issue_key'] = record['issue_key'].replace(record['project_key'], 'ANON')
         record['project_key'] = 'ANON'
         record['issue_title'] = 'Anonymized Title'
         return record
 
-    def _parse_dates(self, record):
+    @staticmethod
+    def __parse_dates(record):
         """Convert date fields to ISO format."""
         for key, value in record.items():
             if 'date' in key and value and not isinstance(value, datetime.datetime):
@@ -79,13 +81,13 @@ class CSVReportGenerator:
 
         count = 0
         for record in records:
-            record = self._parse_dates(record)
+            record = self.__parse_dates(record)
 
             if self.anonymize:
-                record = self._anonymize_record(record)
+                record = self.__anonymize_record(record)
 
             if self.custom_fields:
-                record = self._map_custom_fields(record)
+                record = self.__map_custom_fields(record)
 
             writer.writerow(record)
             count += 1
