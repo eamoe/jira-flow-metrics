@@ -33,21 +33,26 @@ def setup_cache():
     requests_cache.install_cache(cache_name='jira_cache', backend='sqlite', expire_after=24 * 60 * 60)
 
 
-def generate_report(args):
-    """Generate the JIRA CSV report based on the given arguments."""
+def initialize_client(args):
+    """Initialize the JIRA API client."""
     logger.info(f'Connecting to {args.domain} with {args.email} email...')
-
     try:
-        client = ApiClient(domain=args.domain, email=args.email, apikey=args.apikey)
+        return ApiClient(domain=args.domain, email=args.email, apikey=args.apikey)
     except Exception as e:
         raise JiraConnectionError(f"Failed to connect to JIRA: {e}")
 
+
+def fetch_data(client):
+    """Fetch data from JIRA using the provided client."""
     try:
         fetcher = JiraDataFetcher(client)
-        extractor = JiraIssueExtractor(fetcher)
+        return JiraIssueExtractor(fetcher)
     except Exception as e:
         raise JiraDataFetchError(f"Error fetching data from JIRA: {e}")
 
+
+def write_to_csv(args, extractor):
+    """Write the fetched data to a CSV file."""
     mode = 'a' if args.append else 'w'
     try:
         with open(args.output, mode, newline='') as csv_file:
@@ -62,6 +67,13 @@ def generate_report(args):
             csv_generator.generate(write_header=not args.append)
     except Exception as e:
         raise JiraReportGenerationError(f"Failed to generate report: {e}")
+
+
+def generate_report(args):
+    """Generate the JIRA CSV report based on the given arguments."""
+    client = initialize_client(args)
+    extractor = fetch_data(client)
+    write_to_csv(args, extractor)
 
 
 def main():
