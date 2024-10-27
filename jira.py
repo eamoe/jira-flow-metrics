@@ -22,25 +22,31 @@ def setup_cache():
     requests_cache.install_cache(cache_name='jira_cache', backend='sqlite', expire_after=24 * 60 * 60)
 
 
+def set_logging_level(quiet_mode: bool) -> None:
+    """Set the logging level based on the quiet mode flag."""
+    log_level = logging.WARNING if quiet_mode else logging.INFO
+    logging.getLogger().setLevel(log_level)
+    logger.setLevel(log_level)
+
+
 def main():
+    """Main function to execute the JIRA data extraction and report generation."""
+
     setup_cache()
 
     try:
         config_values = Config().values()
     except JiraConfigurationError as e:
-        logger.error(e)
+        logger.error(f"Configuration error: {e}")
         sys.exit(1)
 
     try:
         args = JiraArgumentParser(**config_values).parse()
     except JiraArgumentError as e:
-        logger.error(e)
+        logger.error(f"Argument parsing error: {e}")
         sys.exit(1)
 
-    # Set the global logging level based on --quiet flag
-    log_level = logging.WARNING if args.quiet else logging.INFO
-    logging.getLogger().setLevel(log_level)  # Set root logger level
-    logger.setLevel(log_level)  # Set specific logger level
+    set_logging_level(args.quiet)
 
     try:
         report_generator = JiraReportGenerator(args)
@@ -49,7 +55,7 @@ def main():
             JiraDataFetchError,
             JiraReportGenerationError,
             ValueError) as e:
-        logger.error(e)
+        logger.error(f"Report generation failed: {e}")
         sys.exit(1)
 
 
