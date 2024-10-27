@@ -2,16 +2,102 @@ import logging
 import requests_cache
 from typing import Any, Dict, Generator, Iterator, List, Optional, Union
 
-from ..api.fetcher import JiraDataFetcher
-
+from jira.api.client import ApiClient
 
 logger = logging.getLogger(__name__)
 
 
 class JiraIssueExtractor:
     """Extracts issues and changelogs with logic specific to Jira issues."""
-    def __init__(self, fetcher: JiraDataFetcher) -> None:
-        self.fetcher = fetcher
+    def __init__(self, client: ApiClient) -> None:
+        self.client = client
+
+    def get_status_categories(self) -> Dict[str, Any]:
+        """
+        Fetch all status categories from Jira.
+
+        Returns:
+            Dict[str, Any]: List of status categories.
+        """
+        return self.client.request('GET', '/rest/api/3/statuscategory')
+
+    def get_statuses(self) -> Dict[str, Any]:
+        """
+        Fetch all available statuses in Jira.
+
+        Returns:
+            Dict[str, Any]: List of statuses.
+        """
+        return self.client.request('GET', '/rest/api/3/status')
+
+    def get_project(self, project_key: str) -> Dict[str, Any]:
+        """
+        Fetch details of a specific project by key.
+
+        Args:
+            project_key (str): Key of the project to retrieve.
+
+        Returns:
+            Dict[str, Any]: Project details.
+        """
+        return self.client.request('GET', f'/rest/api/3/project/{project_key}')
+
+    def get_project_statuses(self, project_key: str) -> Dict[str, Any]:
+        """
+        Fetch all statuses for a given project.
+
+        Args:
+            project_key (str): Key of the project to retrieve statuses.
+
+        Returns:
+            Dict[str, Any]: List of statuses for the project.
+        """
+        return self.client.request('GET', f'/rest/api/3/project/{project_key}/statuses')
+
+    def search_issues(self,
+                      jql: str,
+                      fields: List[str],
+                      start: int = 0,
+                      limit: int = 100) -> Dict[str, Any]:
+        """
+        Search issues in Jira based on JQL query.
+
+        Args:
+            jql (str): Jira Query Language string to filter issues.
+            fields (List[str]): List of fields to include in the response.
+            start (int, optional): Starting index for pagination. Defaults to 0.
+            limit (int, optional): Maximum number of results to fetch. Defaults to 100.
+
+        Returns:
+            Dict[str, Any]: JSON response containing issues that match the query.
+        """
+        payload = {
+            'jql': jql,
+            'fieldsByKeys': False,
+            'fields': fields,
+            'startAt': start,
+            'maxResults': limit,
+        }
+        return self.client.request('POST', '/rest/api/3/search', data=payload)
+
+    def get_issue_changelog(self,
+                            issue_id: str,
+                            start: int = 0,
+                            limit: int = 100) -> Dict[str, Any]:
+        """
+        Fetch the changelog for a specific issue.
+
+        Args:
+            issue_id (str): ID or key of the issue.
+            start (int, optional): Starting index for pagination. Defaults to 0.
+            limit (int, optional): Maximum number of changelog entries to fetch. Defaults to 100.
+
+        Returns:
+            Dict[str, Any]: JSON response containing the issue changelog.
+        """
+        return self.client.request(method='GET',
+                                   path=f'/rest/api/3/issue/{issue_id}/changelog',
+                                   params={'startAt': start, 'maxResults': limit})
 
     def __fetch_issues(self,
                        project_key: str,
@@ -42,7 +128,7 @@ class JiraIssueExtractor:
         if custom_fields:
             fields.extend(custom_fields)
 
-        return self.fetcher.search_issues(jql=jql, fields=fields, start=start, limit=limit)
+        return self.search_issues(jql=jql, fields=fields, start=start, limit=limit)
 
     def __fetch_changelog(self, issue_id: str, start: int = 0, limit: int = 100) -> Dict[str, Any]:
         """
@@ -56,7 +142,7 @@ class JiraIssueExtractor:
         Returns:
             Dict[str, Any]: JSON response containing the issue changelog.
         """
-        return self.fetcher.get_issue_changelog(issue_id, start, limit)
+        return self.get_issue_changelog(issue_id, start, limit)
 
     def __yield_issues(self,
                        project_key: str,
@@ -155,11 +241,11 @@ class JiraIssueExtractor:
 
         # Get high level information fresh every time
         with requests_cache.disabled():
-            categories = self.fetcher.get_status_categories()
-            statuses = self.fetcher.get_statuses()
-            project = self.fetcher.get_project(project_key)
+            categories = self.get_status_categories()
+            statuses = self.get_statuses()
+            project = self.get_project(project_key)
             # Fetch issues' statuses of the project
-            project_statuses = self.fetcher.get_project_statuses(project_key)
+            project_statuses = self.get_project_statuses(project_key)
 
         # Compute lookup tables
         categories_by_category_id = {}

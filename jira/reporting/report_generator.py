@@ -6,11 +6,10 @@ import pytz
 from typing import Any, Dict, List, Optional
 
 from jira.api.client import ApiClient
-from jira.api.fetcher import JiraDataFetcher
 from jira.extraction.issue_extractor import JiraIssueExtractor
 
 from jira.utils.exceptions import (JiraConnectionError,
-                                   JiraDataFetchError,
+                                   JiraDataExtractionError,
                                    JiraReportGenerationError)
 
 
@@ -18,6 +17,9 @@ logger = logging.getLogger(__name__)
 
 
 class JiraReportGenerator:
+    """
+    Handles the generation of JIRA reports based on the extracted data.
+    """
     def __init__(self, args: Any) -> None:
         """
         Initialize the JiraReportGenerator.
@@ -38,14 +40,13 @@ class JiraReportGenerator:
             logger.error(f"Connection to JIRA failed: {e}")
             raise JiraConnectionError(f"Failed to connect to JIRA: {e}")
 
-    def __fetch_data(self) -> JiraIssueExtractor:
+    def __initialize_extractor(self) -> JiraIssueExtractor:
         """Fetch data from JIRA using the provided client."""
         try:
-            fetcher = JiraDataFetcher(self.client)
-            return JiraIssueExtractor(fetcher)
+            return JiraIssueExtractor(self.client)
         except Exception as e:
             logger.error(f"Data fetch error: {e}")
-            raise JiraDataFetchError(f"Error fetching data from JIRA: {e}")
+            raise JiraDataExtractionError(f"Error fetching data from JIRA: {e}")
 
     def __build_field_names(self) -> List[str]:
         """Build the list of field names for the CSV."""
@@ -92,7 +93,7 @@ class JiraReportGenerator:
                 record[field_name] = record.pop(field_id)
         return record
 
-    def __write_to_csv(self, extractor: JiraIssueExtractor) -> None:
+    def __write_to_csv(self) -> None:
         """Write the fetched data to a CSV file."""
         mode = 'a' if self.args.append else 'w'
         field_names = self.__build_field_names()
@@ -105,10 +106,10 @@ class JiraReportGenerator:
                 if not self.args.append:
                     writer.writeheader()
 
-                records = extractor.fetch(project_key=self.args.project,
-                                          since=self.args.since,
-                                          custom_fields=self.args.field,
-                                          updates_only=self.args.updates_only)
+                records = self.extractor.fetch(project_key=self.args.project,
+                                               since=self.args.since,
+                                               custom_fields=self.args.field,
+                                               updates_only=self.args.updates_only)
 
                 count = 0
                 for record in records:
@@ -132,5 +133,5 @@ class JiraReportGenerator:
     def run(self) -> None:
         """Main execution function for the report generator."""
         self.client = self.__initialize_client()
-        self.extractor = self.__fetch_data()
-        self.__write_to_csv(self.extractor)
+        self.extractor = self.__initialize_extractor()
+        self.__write_to_csv()

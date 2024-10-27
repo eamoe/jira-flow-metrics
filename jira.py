@@ -8,7 +8,7 @@ from jira.reporting.report_generator import JiraReportGenerator
 
 from jira.utils.exceptions import (JiraConfigurationError,
                                    JiraConnectionError,
-                                   JiraDataFetchError,
+                                   JiraDataExtractionError,
                                    JiraReportGenerationError,
                                    JiraArgumentError)
 
@@ -52,7 +52,7 @@ def main():
         report_generator = JiraReportGenerator(args)
         report_generator.run()
     except (JiraConnectionError,
-            JiraDataFetchError,
+            JiraDataExtractionError,
             JiraReportGenerationError,
             ValueError) as e:
         logger.error(f"Report generation failed: {e}")

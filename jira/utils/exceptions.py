@@ -8,8 +8,8 @@ class JiraConnectionError(Exception):
     pass
 
 
-class JiraDataFetchError(Exception):
-    """Exception raised for errors in the JIRA configuration."""
+class JiraDataExtractionError(Exception):
+    """Exception raised for errors in the JIRA data extraction."""
     pass
 
 
