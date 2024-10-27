@@ -1,25 +1,26 @@
 import argparse
 import datetime
+from typing import List, Tuple
 
 from .exceptions import JiraArgumentError
 
 
 class ParsedArgs:
-    def __init__(self, namespace):
-        self.project = namespace.project
-        self.since = namespace.since
-        self.updates_only = namespace.updates_only
-        self.append = namespace.append
-        self.anonymize = namespace.anonymize
-        self.domain = namespace.domain
-        self.email = namespace.email
-        self.apikey = namespace.apikey
-        self.output = namespace.output
-        self.quiet = namespace.quiet
-        self.field = namespace.field
-        self.name = namespace.name
+    def __init__(self, namespace: argparse.Namespace) -> None:
+        self.project: str = namespace.project
+        self.since: str = namespace.since
+        self.updates_only: bool = namespace.updates_only
+        self.append: bool = namespace.append
+        self.anonymize: bool = namespace.anonymize
+        self.domain: str = namespace.domain
+        self.email: str = namespace.email
+        self.apikey: str = namespace.apikey
+        self.output: str = namespace.output
+        self.quiet: bool = namespace.quiet
+        self.field: List[str] = namespace.field
+        self.name: List[str] = namespace.name
 
-    def validate(self):
+    def validate(self) -> None:
         """Validate the parsed arguments."""
         if not all((self.domain, self.email, self.apikey)):
             raise JiraArgumentError("The JIRA_DOMAIN, JIRA_EMAIL, and JIRA_APIKEY must be provided.")
@@ -28,7 +29,7 @@ class ParsedArgs:
             raise JiraArgumentError(f"Invalid date format for '{self.since}'. It should be in the format YYYY-MM-DD.")
 
     @staticmethod
-    def __validate_date_format(date_string):
+    def __validate_date_format(date_string: str) -> bool:
         try:
             datetime.datetime.strptime(date_string, '%Y-%m-%d')
             return True
@@ -38,13 +39,14 @@ class ParsedArgs:
 
 class JiraArgumentParser:
     """Handles argument parsing for the Jira data extraction script."""
-    def __init__(self, domain, email, apikey, output_file):
+    def __init__(self, domain: str, email: str, apikey: str, output_file: str) -> None:
         self.domain = domain
         self.email = email
         self.apikey = apikey
         self.output_file = output_file
 
-    def __make_parser(self):
+    def __make_parser(self) -> argparse.ArgumentParser:
+        """Create and configure the argument parser."""
         parser = argparse.ArgumentParser(description='Extract changelog of Jira project issue')
         parser.add_argument('project',
                             help='Jira project from which to extract issues')
@@ -90,14 +92,14 @@ class JiraArgumentParser:
         return parser
 
     @staticmethod
-    def __get_custom_fields(namespace):
+    def __get_custom_fields(namespace: argparse.Namespace) -> Tuple[List[str], List[str]]:
         """Return formatted custom fields and names based on arguments."""
         field_ids = [k if k.startswith('customfield') else 'customfield_{}'.format(k) for k in
                      namespace.field] if namespace.field else []
         field_names = list(namespace.name or []) + field_ids[len(namespace.name or []):]
         return field_ids, field_names
 
-    def parse(self):
+    def parse(self) -> ParsedArgs:
         """Parse the command line arguments using the created parser."""
         parser = self.__make_parser()
         try:

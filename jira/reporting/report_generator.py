@@ -3,40 +3,52 @@ import csv
 import datetime
 import dateutil.parser
 import pytz
+from typing import Any, Dict, List, Optional
 
 from jira.api.client import ApiClient
 from jira.api.fetcher import JiraDataFetcher
 from jira.extraction.issue_extractor import JiraIssueExtractor
 
-from jira.utils.exceptions import JiraConnectionError, JiraDataFetchError, JiraReportGenerationError
+from jira.utils.exceptions import (JiraConnectionError,
+                                   JiraDataFetchError,
+                                   JiraReportGenerationError)
 
 
 logger = logging.getLogger(__name__)
 
 
 class JiraReportGenerator:
-    def __init__(self, args):
-        self.args = args
-        self.client = None
-        self.extractor = None
+    def __init__(self, args: Any) -> None:
+        """
+        Initialize the JiraReportGenerator.
 
-    def __initialize_client(self):
+        Args:
+            args (Any): Configuration arguments.
+        """
+        self.args = args
+        self.client: Optional[ApiClient] = None
+        self.extractor: Optional[JiraIssueExtractor] = None
+
+    def __initialize_client(self) -> ApiClient:
         """Initialize the JIRA API client."""
         logger.info(f'Connecting to {self.args.domain} with {self.args.email} email...')
         try:
             return ApiClient(domain=self.args.domain, email=self.args.email, apikey=self.args.apikey)
         except Exception as e:
+            logger.error(f"Connection to JIRA failed: {e}")
             raise JiraConnectionError(f"Failed to connect to JIRA: {e}")
 
-    def __fetch_data(self):
+    def __fetch_data(self) -> JiraIssueExtractor:
         """Fetch data from JIRA using the provided client."""
         try:
             fetcher = JiraDataFetcher(self.client)
             return JiraIssueExtractor(fetcher)
         except Exception as e:
+            logger.error(f"Data fetch error: {e}")
             raise JiraDataFetchError(f"Error fetching data from JIRA: {e}")
 
-    def __build_field_names(self):
+    def __build_field_names(self) -> List[str]:
+        """Build the list of field names for the CSV."""
         default_fields = ['project_id',
                           'project_key',
                           'issue_id',
@@ -53,11 +65,11 @@ class JiraReportGenerator:
                           'status_from_category_name',
                           'status_to_category_name',
                           'status_change_date']
-        # Append custom field names or ids
+        # Append custom field names or ids if provided
         return default_fields + (self.args.name or self.args.field)
 
     @staticmethod
-    def __parse_dates(record):
+    def __parse_dates(record: Dict[str, Any]) -> Dict[str, Any]:
         """Convert date fields to ISO format."""
         for key, value in record.items():
             if 'date' in key and value and not isinstance(value, datetime.datetime):
@@ -65,14 +77,14 @@ class JiraReportGenerator:
         return record
 
     @staticmethod
-    def __anonymize_record(record):
+    def __anonymize_record(record: Dict[str, Any]) -> Dict[str, Any]:
         """Anonymize sensitive fields in the record."""
         record['issue_key'] = record['issue_key'].replace(record['project_key'], 'ANON')
         record['project_key'] = 'ANON'
         record['issue_title'] = 'Anonymized Title'
         return record
 
-    def __map_custom_fields(self, record):
+    def __map_custom_fields(self, record: Dict[str, Any]) -> Dict[str, Any]:
         """Map custom fields to their corresponding names if provided."""
         custom_field_map = dict(zip(self.args.field, self.args.name))
         for field_id, field_name in custom_field_map.items():
@@ -80,13 +92,16 @@ class JiraReportGenerator:
                 record[field_name] = record.pop(field_id)
         return record
 
-    def __write_to_csv(self, extractor):
+    def __write_to_csv(self, extractor: JiraIssueExtractor) -> None:
         """Write the fetched data to a CSV file."""
         mode = 'a' if self.args.append else 'w'
         field_names = self.__build_field_names()
+
         try:
             with open(self.args.output, mode, newline='') as csv_file:
                 writer = csv.DictWriter(f=csv_file, fieldnames=field_names)
+
+                # Write header only if not appending
                 if not self.args.append:
                     writer.writeheader()
 
@@ -108,12 +123,14 @@ class JiraReportGenerator:
                     writer.writerow(record)
                     count += 1
 
-                logging.info(f'{count} records written')
+                logger.info(f'{count} records written successfully')
 
         except Exception as e:
+            logger.error(f"Report generation error: {e}")
             raise JiraReportGenerationError(f"Failed to generate report: {e}")
 
-    def run(self):
+    def run(self) -> None:
+        """Main execution function for the report generator."""
         self.client = self.__initialize_client()
         self.extractor = self.__fetch_data()
         self.__write_to_csv(self.extractor)
