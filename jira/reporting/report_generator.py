@@ -6,7 +6,7 @@ import pytz
 from typing import Any, Dict, List, Optional
 
 from jira.api.client import ApiClient
-from jira.extraction.issue_extractor import JiraIssueExtractor
+from jira.extraction.issue_extractor import IssueExtractor
 
 from jira.utils.exceptions import (JiraConnectionError,
                                    JiraDataExtractionError,
@@ -16,7 +16,7 @@ from jira.utils.exceptions import (JiraConnectionError,
 logger = logging.getLogger(__name__)
 
 
-class JiraReportGenerator:
+class ReportGenerator:
     """
     Handles the generation of JIRA reports based on the extracted data.
     """
@@ -40,10 +40,10 @@ class JiraReportGenerator:
             logger.error(f"Connection to JIRA failed: {e}")
             raise JiraConnectionError(f"Failed to connect to JIRA: {e}")
 
-    def __initialize_extractor(self) -> JiraIssueExtractor:
+    def __initialize_extractor(self) -> IssueExtractor:
         """Fetch data from JIRA using the provided client."""
         try:
-            return JiraIssueExtractor(self.client)
+            return IssueExtractor(self.client)
         except Exception as e:
             logger.error(f"Data fetch error: {e}")
             raise JiraDataExtractionError(f"Error fetching data from JIRA: {e}")

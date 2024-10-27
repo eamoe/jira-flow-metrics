@@ -2,8 +2,8 @@ import requests_cache
 import sys
 
 from jira.utils.config import Config
-from jira.utils.arg_parser import JiraArgumentParser
-from jira.reporting.report_generator import JiraReportGenerator
+from jira.utils.arg_parser import ArgumentParser
+from jira.reporting.report_generator import ReportGenerator
 
 from jira.utils.exceptions import (JiraConfigurationError,
                                    JiraConnectionError,
@@ -34,18 +34,19 @@ def main():
         sys.exit(1)
 
     try:
-        args = JiraArgumentParser(**config_values).parse()
+        args = ArgumentParser(**config_values).parse()
         logger_config.setup_quiet_logging(args.quiet)
     except JiraArgumentError as e:
         logger.error(f"Argument parsing error: {e}")
         sys.exit(1)
 
     try:
-        report_generator = JiraReportGenerator(args)
+        report_generator = ReportGenerator(args)
         report_generator.run()
     except (JiraConnectionError,
             JiraDataExtractionError,
-            JiraReportGenerationErrorValueError) as e:
+            JiraReportGenerationError,
+            ValueError) as e:
         logger.error(f"Report generation failed: {e}")
         sys.exit(1)
 

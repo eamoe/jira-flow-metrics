@@ -37,7 +37,7 @@ class ParsedArgs:
             return False
 
 
-class JiraArgumentParser:
+class ArgumentParser:
     """Handles argument parsing for the Jira data extraction script."""
     def __init__(self, domain: str, email: str, apikey: str, output_file: str) -> None:
         self.domain = domain
