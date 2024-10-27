@@ -4,16 +4,13 @@ import logging
 
 from jira.utils.config import Config
 from jira.utils.arg_parser import JiraArgumentParser
-from jira.api.client import ApiClient
-from jira.api.fetcher import JiraDataFetcher
-from jira.extraction.issue_extractor import JiraIssueExtractor
-from jira.reporting.csv_generator import CSVReportGenerator
+from jira.reporting.report_generator import JiraReportGenerator
+
 from jira.utils.exceptions import (JiraConfigurationError,
                                    JiraConnectionError,
                                    JiraDataFetchError,
                                    JiraReportGenerationError,
                                    JiraArgumentError)
-from jira.reporting.report_generator import JiraReportGenerator
 
 
 logging.basicConfig(level=logging.INFO)
