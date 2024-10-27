@@ -17,15 +17,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def get_config_values():
-    """Load configuration."""
-    try:
-        values = Config().values()
-    except Exception as e:
-        raise JiraConfigurationError(f"Error loading configuration: {e}")
-    return values
-
-
 def setup_cache():
     """Set up a requests cache to reduce API calls and improve performance."""
     requests_cache.install_cache(cache_name='jira_cache', backend='sqlite', expire_after=24 * 60 * 60)
@@ -35,9 +26,14 @@ def main():
     setup_cache()
 
     try:
-        config_values = get_config_values()
+        config_values = Config().values()
+    except JiraConfigurationError as e:
+        logger.error(e)
+        sys.exit(1)
+
+    try:
         args = JiraArgumentParser(**config_values).parse()
-    except (JiraConfigurationError, JiraArgumentError) as e:
+    except JiraArgumentError as e:
         logger.error(e)
         sys.exit(1)
 
@@ -49,8 +45,7 @@ def main():
     try:
         report_generator = JiraReportGenerator(args)
         report_generator.run()
-    except (JiraConfigurationError,
-            JiraConnectionError,
+    except (JiraConnectionError,
             JiraDataFetchError,
             JiraReportGenerationError,
             ValueError) as e:

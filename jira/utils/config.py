@@ -1,5 +1,7 @@
 from decouple import config
 
+from jira.utils.exceptions import JiraConfigurationError
+
 
 class Config:
     """Configuration class to handle settings for the application."""
@@ -26,7 +28,10 @@ class Config:
 
     def values(self):
         """Return combined configuration values."""
-        return {
-            **self.__get_jira_credentials(),
-            **self.__get_output_file()
-        }
+        try:
+            return {
+                **self.__get_jira_credentials(),
+                **self.__get_output_file()
+            }
+        except Exception as e:
+            raise JiraConfigurationError(f"Error loading configuration: {e}")
