@@ -106,10 +106,10 @@ class JiraReportGenerator:
                 if not self.args.append:
                     writer.writeheader()
 
-                records = self.extractor.fetch(project_key=self.args.project,
-                                               since=self.args.since,
-                                               custom_fields=self.args.field,
-                                               updates_only=self.args.updates_only)
+                records = self.extractor.fetch_records(project_key=self.args.project,
+                                                       since=self.args.since,
+                                                       custom_fields=self.args.field,
+                                                       updates_only=self.args.updates_only)
 
                 count = 0
                 for record in records:

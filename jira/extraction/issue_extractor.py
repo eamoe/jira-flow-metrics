@@ -12,7 +12,7 @@ class JiraIssueExtractor:
     def __init__(self, client: ApiClient) -> None:
         self.client = client
 
-    def get_status_categories(self) -> Dict[str, Any]:
+    def __get_status_categories(self) -> Dict[str, Any]:
         """
         Fetch all status categories from Jira.
 
@@ -21,7 +21,7 @@ class JiraIssueExtractor:
         """
         return self.client.request('GET', '/rest/api/3/statuscategory')
 
-    def get_statuses(self) -> Dict[str, Any]:
+    def __get_statuses(self) -> Dict[str, Any]:
         """
         Fetch all available statuses in Jira.
 
@@ -30,7 +30,7 @@ class JiraIssueExtractor:
         """
         return self.client.request('GET', '/rest/api/3/status')
 
-    def get_project(self, project_key: str) -> Dict[str, Any]:
+    def __get_project(self, project_key: str) -> Dict[str, Any]:
         """
         Fetch details of a specific project by key.
 
@@ -42,7 +42,7 @@ class JiraIssueExtractor:
         """
         return self.client.request('GET', f'/rest/api/3/project/{project_key}')
 
-    def get_project_statuses(self, project_key: str) -> Dict[str, Any]:
+    def __get_project_statuses(self, project_key: str) -> Dict[str, Any]:
         """
         Fetch all statuses for a given project.
 
@@ -54,11 +54,11 @@ class JiraIssueExtractor:
         """
         return self.client.request('GET', f'/rest/api/3/project/{project_key}/statuses')
 
-    def search_issues(self,
-                      jql: str,
-                      fields: List[str],
-                      start: int = 0,
-                      limit: int = 100) -> Dict[str, Any]:
+    def __search_issues(self,
+                        jql: str,
+                        fields: List[str],
+                        start: int = 0,
+                        limit: int = 100) -> Dict[str, Any]:
         """
         Search issues in Jira based on JQL query.
 
@@ -80,10 +80,10 @@ class JiraIssueExtractor:
         }
         return self.client.request('POST', '/rest/api/3/search', data=payload)
 
-    def get_issue_changelog(self,
-                            issue_id: str,
-                            start: int = 0,
-                            limit: int = 100) -> Dict[str, Any]:
+    def __get_issue_changelog(self,
+                              issue_id: str,
+                              start: int = 0,
+                              limit: int = 100) -> Dict[str, Any]:
         """
         Fetch the changelog for a specific issue.
 
@@ -128,7 +128,7 @@ class JiraIssueExtractor:
         if custom_fields:
             fields.extend(custom_fields)
 
-        return self.search_issues(jql=jql, fields=fields, start=start, limit=limit)
+        return self.__search_issues(jql=jql, fields=fields, start=start, limit=limit)
 
     def __fetch_changelog(self, issue_id: str, start: int = 0, limit: int = 100) -> Dict[str, Any]:
         """
@@ -142,7 +142,7 @@ class JiraIssueExtractor:
         Returns:
             Dict[str, Any]: JSON response containing the issue changelog.
         """
-        return self.get_issue_changelog(issue_id, start, limit)
+        return self.__get_issue_changelog(issue_id, start, limit)
 
     def __yield_issues(self,
                        project_key: str,
@@ -219,11 +219,11 @@ class JiraIssueExtractor:
                     yield result
                     fetched += 1
 
-    def fetch(self,
-              project_key: str,
-              since: str,
-              custom_fields: Optional[List[str]] = None,
-              updates_only: bool = False) -> Generator[Dict[str, Union[str, None]], None, None]:
+    def fetch_records(self,
+                      project_key: str,
+                      since: str,
+                      custom_fields: Optional[List[str]] = None,
+                      updates_only: bool = False) -> Generator[Dict[str, Union[str, None]], None, None]:
         """
         Fetch and yield issues with changelog details.
 
@@ -241,11 +241,11 @@ class JiraIssueExtractor:
 
         # Get high level information fresh every time
         with requests_cache.disabled():
-            categories = self.get_status_categories()
-            statuses = self.get_statuses()
-            project = self.get_project(project_key)
+            categories = self.__get_status_categories()
+            statuses = self.__get_statuses()
+            project = self.__get_project(project_key)
             # Fetch issues' statuses of the project
-            project_statuses = self.get_project_statuses(project_key)
+            project_statuses = self.__get_project_statuses(project_key)
 
         # Compute lookup tables
         categories_by_category_id = {}
